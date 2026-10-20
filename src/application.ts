@@ -104,8 +104,10 @@ export function createApplication(options: ApplicationOptions) {
     if (sending && c.res.status === 202) {
       try {
         const receipt: unknown = await c.res.clone().json();
-        const parsed = z.object({ submissionId: z.string() }).safeParse(receipt);
-        if (parsed.success)
+        const parsed = z
+          .object({ submissionId: z.string(), deduplicated: z.boolean().optional() })
+          .safeParse(receipt);
+        if (parsed.success) {
           log({
             event: 'agent.admitted',
             requestId: c.get('requestId'),
@@ -113,6 +115,8 @@ export function createApplication(options: ApplicationOptions) {
             conversationId: chatId,
             submissionId: parsed.data.submissionId,
           });
+          if (parsed.data.deduplicated === true) return;
+        }
       } catch {
         log({
           event: 'agent.receipt_unreadable',

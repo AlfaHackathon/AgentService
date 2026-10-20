@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { PGlite } from '@electric-sql/pglite';
 import { postgres } from '@flue/postgres';
 import { init } from '@flue/runtime';
@@ -16,6 +17,11 @@ import { createModelProvider } from '../src/config/model.ts';
 import { createTestDatabase } from './helpers/database.ts';
 import { aliceUserId, gatewayHeaders } from './helpers/identity.ts';
 import { createLlmServer } from './helpers/llm-server.ts';
+
+const setChatTimestampSql = readFileSync(
+  new URL('./sql/set-chat-timestamp.sql', import.meta.url),
+  'utf8',
+);
 
 describe('real Flue + PostgreSQL adapter + SDK + HTTP model', () => {
   let db: PGlite;
@@ -106,6 +112,44 @@ describe('real Flue + PostgreSQL adapter + SDK + HTTP model', () => {
     const reconnected = client(a.url.split('/').at(-1) ?? '');
     expect((await reconnected.history()).messages.length).toBeGreaterThanOrEqual(4);
     expect((await reconnected.read(receipt.submissionId)).text).toContain('alpha');
+  });
+
+  it('keeps a deduplicated delivery from changing chat activity or paginated order', async () => {
+    const chat = await chats.create(aliceUserId);
+    const a = client(chat.id);
+    const input = {
+      message: { kind: 'user' as const, body: 'accepted-once' },
+      idempotencyKey: 'retry-old-delivery',
+    };
+    const oldTimestamp = '2000-01-01T00:00:00.000Z';
+    await db.query(setChatTimestampSql, [oldTimestamp]);
+    const receipt = await a.send(input);
+    expect((await chats.get(chat.id, aliceUserId))?.updatedAt).not.toBe(oldTimestamp);
+    await a.read(receipt);
+
+    // Make the accepted delivery older than a second chat without timing assumptions.
+    await db.query(setChatTimestampSql, [oldTimestamp]);
+    const newer = await chats.create(aliceUserId);
+    const list = (cursor?: string) =>
+      app.request(`/chats?limit=1${cursor ? `&cursor=${cursor}` : ''}`, {
+        headers: gatewayHeaders(),
+      });
+    const firstPage: { items: { id: string }[]; nextCursor: string } = await (await list()).json();
+    expect(firstPage.items.map((item) => item.id)).toEqual([newer.id]);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    expect(await a.send(input)).toMatchObject({
+      submissionId: receipt.submissionId,
+      deduplicated: true,
+    });
+    const metadata = await app.request(`/chats/${chat.id}`, { headers: gatewayHeaders() });
+    expect(await metadata.json()).toMatchObject({ updatedAt: oldTimestamp });
+    expect(await (await list()).json()).toMatchObject({ items: [{ id: newer.id }] });
+    expect(await (await list(firstPage.nextCursor)).json()).toMatchObject({
+      items: [{ id: chat.id }],
+      nextCursor: null,
+    });
+    expect(model.requests).toHaveLength(1);
   });
 
   it('reloads native history after runtime replacement and starts a background definition', async () => {
