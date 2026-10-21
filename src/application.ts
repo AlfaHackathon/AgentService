@@ -136,8 +136,35 @@ export function createApplication(options: ApplicationOptions) {
 }
 
 // Gateway forwards service paths unchanged, as for /user-service and /auth-service.
-export function mountService(application: ReturnType<typeof createApplication>) {
+export function mountService(
+  application: ReturnType<typeof createApplication>,
+  publicOrigin?: string,
+) {
+  const origin = publicOrigin === undefined ? undefined : new URL(publicOrigin);
+  if (
+    origin &&
+    (!['http:', 'https:'].includes(origin.protocol) ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== '/' ||
+      origin.search ||
+      origin.hash)
+  ) {
+    throw new Error('PUBLIC_ORIGIN must be an HTTP(S) origin without credentials or a path');
+  }
   const service = new Hono();
+  if (origin) {
+    // TLS terminates at nginx. Use deployment configuration for native absolute URLs,
+    // rather than trusting client-supplied forwarded headers.
+    service.use('*', async (c, next) => {
+      const url = new URL(c.req.url);
+      url.protocol = origin.protocol;
+      url.host = origin.host;
+      url.port = origin.port;
+      c.req.raw = new Request(url, c.req.raw);
+      await next();
+    });
+  }
   service.route('/agent-service', application);
   return service;
 }

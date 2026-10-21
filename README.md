@@ -168,3 +168,12 @@ endpoint. Проверяются SQL, контекст gateway, владение
 [SDK](https://flueframework.com/docs/sdk/overview/), [Node](https://flueframework.com/docs/guide/node-target/).
 Структура определений и общих настроек ориентируется на [flue-agents](https://github.com/getsentry/flue-agents);
 его старый API 0.11 заменён API Flue 2.
+
+### Внешний HTTPS origin
+
+Если TLS завершается на nginx, задайте `PUBLIC_ORIGIN=https://api.cheremha.ru`.
+Сервис использует этот origin для native absolute URLs, включая streamUrl квитанции.
+Пути, query string и тело запроса сохраняются; forwarded-заголовки клиента не
+определяют origin. При отсутствии настройки используются исходные URLs запроса,
+как при локальной HTTP-разработке. Значение должно содержать только HTTP(S) origin
+без credentials, пути, query string или fragment.
