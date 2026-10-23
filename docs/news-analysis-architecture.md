@@ -69,22 +69,3 @@ source binding, глубину, segment batching, бюджеты и retry. До�
 seam tests проверяют конкурентное admission и порядок watch → receipt → enqueue → cursor,
 включая восстановление после неуспешного enqueue. Отрицательные boundary fixtures
 проверяют, что нарушение направления зависимостей действительно обнаруживается.
-
-Фактическая локальная проверка рефакторинга 23.10.2026:
-
-| Команда | Результат |
-| --- | --- |
-| Baseline `npm test` | 156 тестов, 22 файла |
-| `npm test` после рефакторинга | 170 тестов, 24 файла |
-| `npm run typecheck` | Успешно |
-| `npm run check` | Biome и boundary guard успешно |
-| `npm run test:built` | Production Vite build и 4 проверки built service успешно |
-| `git diff --check` | Успешно |
-
-Дополнительные 14 проверок — 3 application seam tests и 11 boundary tests.
-Межпроцессная проверка трёх сервисов ведётся отдельным harness на уровне общего
-workspace; приведённые числа относятся только к проверкам AgentService.
-
-Локальные отчёты прогонов и исходные evidence snapshots не входят в репозиторий.
-Исходники, тесты и schemas остаются под проверкой. Архитектурная проверка не
-подтверждает семантическое качество OCR/LLM или завершение банковского кейса.

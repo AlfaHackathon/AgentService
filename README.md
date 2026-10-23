@@ -223,7 +223,7 @@ production app. Реальные суммы/договоры/полномочи�
 
 ## Сборка и эксплуатация
 
-### Новостной worker и малый сервисный сценарий
+### Новостной worker
 
 `npm run news:worker` запускает тот же news flow на `127.0.0.1:5184`, с PostgreSQL для Flue.
 Нужны `INTERNAL_SECRET`, `CONTEXT_SERVICE_URL` (с `/context-service`), `INSIGHT_SERVICE_URL`
@@ -238,23 +238,6 @@ embedding/reranker sidecar. InsightService разрешает источники
 Ошибки компаний/роли переводят job в `failed`; внутренний
 `POST /insight-service/internal/news-jobs/:jobId/retry` повторяет только неуспешные компании,
 сохраняет план и успешные receipts и пересобирает затронутые ролевые проекции.
-
-Явно синтетический сценарий создаёт три профиля, плавающий/фиксированный договоры,
-вложенную группу с повторным путём к владельцу и две роли с разными read grants:
-
-```powershell
-$env:NEWS_DEMO_NEWS_ID = 'my-service-smoke' # Новый ID для нового опыта; тот же для correction/replay.
-$env:NEWS_DEMO_OUTPUT = '.test-data/news-v1.json' # Необязательно; каталог должен существовать.
-node --env-file=.env --experimental-strip-types scripts/news-demo.ts
-$env:NEWS_DEMO_OUTPUT = '.test-data/news-v2.json'
-node --env-file=.env --experimental-strip-types scripts/news-demo.ts --correction
-```
-
-Сценарий проверяет −20000 → −15000 RUB стандартного месячного run-rate по К-204,
-тот же effect ID и actual previous revision, отсутствие выдуманного числового эффекта по
-фиксированному договору/магазину, однократный вклад в группы и разрешённые факты/группы ролей.
-Неполный или ошибочный результат даёт ненулевой exit code. Повтор ID возвращает сохранённый job,
-поэтому сам по себе не означает новый вызов модели. Старые результаты не перезаписываются.
 
 Групповые итоги используют канонические числа только при совместимых metric/basis/unit/period
 и явном sourced aggregation rule. Пропущенный старый эффект сохраняется в InsightService и
@@ -326,8 +309,6 @@ endpoint. Проверяются SQL, контекст gateway, владение
 диалога, повторную доставку, изоляцию чатов и запуск трёх фоновых ботов через Flue CLI.
 Этот прогон создаёт тестовые чаты и делает реальные обращения к модели; обычный `npm test`
 модель не вызывает.
-
-Фактический локальный прогон и команды управления стендом: [docs/local-verification.md](docs/local-verification.md).
 
 Источники API: [Agents](https://flueframework.com/docs/guide/building-agents/),
 [Routing](https://flueframework.com/docs/guide/routing/), [Database](https://flueframework.com/docs/guide/database/),
