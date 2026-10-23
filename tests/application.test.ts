@@ -24,7 +24,7 @@ describe('HTTP access and metadata', () => {
     log.mockClear();
     const router = new Hono();
     router.post('/:id', (c) => {
-      admitted();
+      admitted(c.req.url);
       return c.json({ submissionId: 'submission-1' }, 202);
     });
     router.get('/:id', (c) => c.json({ messages: [] }));
@@ -45,6 +45,24 @@ describe('HTTP access and metadata', () => {
   const headers = (userId: string) => ({
     'X-User-Id': userId,
     'Content-Type': 'application/json',
+  });
+
+  it('preserves native request paths and bodies while using the configured HTTPS origin', async () => {
+    const service = mountService(app, 'https://api.cheremha.ru');
+    const chat = await chats.create(alice);
+    const response = await service.request(
+      `http://internal:3000/agent-service/agents/assistant/${chat.id}?probe=1`,
+      {
+        method: 'POST',
+        headers: { ...headers(alice), 'X-Forwarded-Proto': 'http' },
+        body: JSON.stringify({ kind: 'user', body: 'Hello' }),
+      },
+    );
+    expect(response.status).toBe(202);
+    expect(admitted).toHaveBeenCalledWith(
+      `https://api.cheremha.ru/agent-service/agents/assistant/${chat.id}?probe=1`,
+    );
+    expect(() => mountService(app, 'https://api.cheremha.ru/path')).toThrow('PUBLIC_ORIGIN');
   });
 
   it('uses the gateway service prefix and requires its user context on every native operation', async () => {

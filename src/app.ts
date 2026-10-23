@@ -21,4 +21,5 @@ export default mountService(
       await pool.query(readinessSql);
     },
   }),
+  process.env.PUBLIC_ORIGIN,
 );

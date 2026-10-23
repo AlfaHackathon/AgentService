@@ -360,7 +360,12 @@ Consumer принимает текущий `NewsEventMessage` WebNewsParserServi
 импорты для интеграции и автоматическая проверка зависимостей:
 [news-analysis-architecture.md](docs/news-analysis-architecture.md).
 
-
-
-
 Текущий протокол: отдельный реестр сигналов, повторное использование по версии источника, полный ОКВЭД, проверка тематической связи собственных документов и автоматический OCR — [правила механизма](docs/news-mechanism-rules.md).
+### Внешний HTTPS origin
+
+Если TLS завершается на nginx, задайте `PUBLIC_ORIGIN=https://api.cheremha.ru`.
+Сервис использует этот origin для native absolute URLs, включая streamUrl квитанции.
+Пути, query string и тело запроса сохраняются; forwarded-заголовки клиента не
+определяют origin. При отсутствии настройки используются исходные URLs запроса,
+как при локальной HTTP-разработке. Значение должно содержать только HTTP(S) origin
+без credentials, пути, query string или fragment.
