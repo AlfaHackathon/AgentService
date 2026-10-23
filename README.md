@@ -19,6 +19,11 @@ Native result содержит `question={mechanism,frame,unit,targetPeriod,base
 Добор прекращается при отсутствии нового оригинала, исчерпанном доступном корпусе или бюджете;
 queries/полученные версии/stopReason сохраняются в receipt. Отсутствие основания остаётся unknown.
 
+HTTP-клиенты читают пакетный ответ ошибки ContextService/InsightService `{errorMessage}`
+и прежний `{code,message}` для middleware. При конфликте HTTP 409 во время записи
+пустого applicability receipt повторно проверяется `stateVersion`: переход к глубокому
+анализу происходит только при изменении состояния, без разбора текста ошибки.
+
 `companyBudget` ограничивает одну lease-партию. Job с оставшимися адресатами получает `partial`
 и подхватывается worker после перезапуска; сохранённые plan/receipts переиспользуются.
 Предыдущие адресаты читаются из canonical question index страницами по 256.

@@ -145,10 +145,7 @@ export async function runCompany(input: {
       try {
         receipt = await analyzer.recordApplicability(analysisInput);
       } catch (error) {
-        if (
-          !(error instanceof NewsAnalysisError) ||
-          !['DEPTH_ESCALATION_REQUIRED', 'stale_company_snapshot'].includes(error.code)
-        )
+        if (!(error instanceof NewsAnalysisError) || error.code !== 'DEPTH_ESCALATION_REQUIRED')
           throw error;
         depth = {
           ...depth,

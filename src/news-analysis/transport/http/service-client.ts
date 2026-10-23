@@ -3,7 +3,13 @@ import { z } from 'zod';
 import { type AnalysisErrorStatus, NewsAnalysisError } from '../../contracts/errors.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
-const upstreamErrorSchema = z.object({ code: z.string().max(200), message: z.string().max(2000) });
+const upstreamErrorSchema = z.union([
+  z.object({ code: z.string().max(200), message: z.string().max(2000) }),
+  z.object({ errorMessage: z.string().max(2000) }).transform(({ errorMessage }) => ({
+    code: 'UPSTREAM_ERROR',
+    message: errorMessage,
+  })),
+]);
 
 function publicUpstreamStatus(status: number): AnalysisErrorStatus {
   switch (status) {

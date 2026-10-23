@@ -103,13 +103,31 @@ export class NewsAnalyzer {
         'DEPTH_ESCALATION_REQUIRED',
         'Canonical state changed since the depth decision',
       );
-    const receipt = await insights.saveAnalysis({
-      ...input,
-      drafts: [],
-      expectedStateVersion: before.stateVersion,
-      contextComplete: false,
-    });
-    return { ...receipt, reasoningInvoked: false, contextComplete: false };
+    try {
+      const receipt = await insights.saveAnalysis({
+        ...input,
+        drafts: [],
+        expectedStateVersion: before.stateVersion,
+        contextComplete: false,
+      });
+      return { ...receipt, reasoningInvoked: false, contextComplete: false };
+    } catch (error) {
+      if (
+        error instanceof NewsAnalysisError &&
+        error.status === 409 &&
+        before.stateVersion !== undefined
+      ) {
+        const after = await insights.getState(input);
+        if (after.stateVersion !== undefined && after.stateVersion !== before.stateVersion) {
+          throw new NewsAnalysisError(
+            409,
+            'DEPTH_ESCALATION_REQUIRED',
+            'Canonical state changed before atomic commit',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   analyze(input: AnalysisRequest): Promise<AnalysisResult> {
