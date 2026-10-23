@@ -9,23 +9,28 @@
   "scripts": {
     "dev": "vite dev --host 127.0.0.1",
     "build": "vite build",
-    "start": "node dist/server.mjs",
+    "start": "node dist/service.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:built": "npm run build && vitest run --config vitest.built.config.ts",
     "test:live": "npm run build && node --env-file=.env node_modules/vitest/vitest.mjs run --config vitest.live.config.ts",
-    "check": "biome check .",
+    "check": "biome check . && npm run check:boundaries",
+    "check:boundaries": "node --experimental-strip-types scripts/check-news-boundaries.ts",
     "format": "biome check --write .",
     "migrate": "node --env-file-if-exists=.env --experimental-strip-types scripts/migrate.ts",
-    "chat": "node --env-file-if-exists=.env --experimental-strip-types scripts/chat.ts"
+    "chat": "node --env-file-if-exists=.env --experimental-strip-types scripts/chat.ts",
+    "news:worker": "node --env-file-if-exists=.env --experimental-strip-types scripts/news-server.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.3.0",
     "@flue/postgres": "2.3.0",
     "@flue/runtime": "2.3.0",
     "@flue/sdk": "2.3.0",
+    "@hono/node-server": "2.1.5",
     "hono": "^4.12.32",
+    "kafkajs": "2.2.4",
     "pg": "^8.16.3",
+    "valibot": "1.5.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

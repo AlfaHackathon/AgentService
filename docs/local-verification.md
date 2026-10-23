@@ -82,7 +82,7 @@ Invoke-RestMethod http://127.0.0.1:3000/agent-service/ready
 Обычный повторный запуск сервиса в терминале:
 
 ```powershell
-node --env-file=.env dist/server.mjs
+node --env-file=.env dist/service.mjs
 ```
 
 Запускайте его после остановки прежнего экземпляра: две копии runtime для одной conversation

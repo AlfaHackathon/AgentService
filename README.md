@@ -1,9 +1,35 @@
 # AgentService
 
 Основание агентного сервиса AlfaHackathon: TypeScript, Node 24, Flue 2.3, Hono и PostgreSQL.
-Четыре бота определены в коде. Пользователь общается с ClientAssistantAgent; CompanyResearchAgent,
-InsightAgent и ScenarioAgent зарегистрированы для внутреннего запуска. Все работают с содержимым
-своих диалогов. Внешние инструменты и предметные интеграции пока не подключены.
+Пользователь общается с ClientAssistantAgent; CompanyResearchAgent, InsightAgent и ScenarioAgent
+зарегистрированы для внутреннего запуска. Новостной pipeline использует ещё три Flue-агента:
+NewsPlannerAgent, CompanyConsequencesAgent и RoleProjectionAgent, настоящий ContextService и InsightService.
+
+## Новостное состояние и продолжение
+
+Native result содержит `question={mechanism,frame,unit,targetPeriod,baselinePeriod,basis}` и
+`assessment={conditions,unknowns}`. `frame` отделяет `event_only`, `absolute`, `budget_delta`;
+периоды имеют ISO-формат/`unknown`, бюджетный baseline можно обозначить `budget:2026-11`.
+Код связывает буквальный объект, источники и устойчивый key. Для существующего вопроса модель
+выбирает handle `q0`; историю, predecessor IDs и операции хранилища она не задаёт.
+Разные механизмы и базы сравнения сохраняются отдельно.
+
+`NewsAnalyzer` читает один before snapshot со `stateVersion`, делает до двух адресных доборов
+по максимум трём запросам, затем отправляет атомарный пакет с `expectedStateVersion`.
+Добор прекращается при отсутствии нового оригинала, исчерпанном доступном корпусе или бюджете;
+queries/полученные версии/stopReason сохраняются в receipt. Отсутствие основания остаётся unknown.
+
+`companyBudget` ограничивает одну lease-партию. Job с оставшимися адресатами получает `partial`
+и подхватывается worker после перезапуска; сохранённые plan/receipts переиспользуются.
+Предыдущие адресаты читаются из canonical question index страницами по 256.
+`SourceChangePump` читает транзакционный журнал ContextService, ставит durable jobs и затем
+продвигает CAS cursor. Новые версии оснований инициируют пересмотр с `trigger`; изменения
+группы/роли — `projectionOnly` refresh общего состояния без нового company reasoning.
+
+Группы агрегируют сопоставимые mechanism/frame/baseline/basis/unit/period. Устаревшие основания
+исключаются из известных subtotal и ролевых действий; gaps блокируют полный итог.
+Ролевая модель получает разрешённые факты и канонически отображённые Decimal-результаты;
+исходное `modelExplanation` остаётся в audit receipt. CSV-связь человека не создаёт роль/grant.
 
 ## Локальный запуск
 
@@ -110,7 +136,142 @@ CLI загружает .env и db.ts. Не запускайте CLI и серв�
 У каждого фонового задания должен быть собственный ID; публичных HTTP-маршрутов фоновых ботов нет.
 Определения агентов лежат в src/agents, инструкции — в src/instructions, модель — в src/config/model.ts.
 
+## Внутренняя обработка новости
+
+`POST /agent-service/internal/news-analysis` принимает
+`{companyId,bankProfileId?,newsMaterialId,newsVersionId,asOf}`. `companyId` — GUID
+приложения; `bankProfileId` — отдельный необязательный `U_*`. Технический user ID
+или роль Auth не устанавливает компанию, должность и document ACL.
+
+Этот маршрут требует **отдельный** `X-Internal-Secret`. Пользовательский Bearer или
+`X-User-Id` его не заменяет. Нужны непустой `INTERNAL_SECRET`,
+`CONTEXT_SERVICE_URL=http://.../context-service` и
+`INSIGHT_SERVICE_URL=http://.../insight-service`; клиенты добавляют `/internal/...`.
+Отсутствующая/невалидная новая конфигурация отключает только эту интеграцию с 503.
+Секрет не попадает в model input и не пересылается через redirects.
+
+Конечный процесс в `src/news-analysis` проверяет сохранённую квитанцию анализа до
+reasoning, читает полный доступный ContextBundle и actual current revisions через
+HTTP. Reasoner заменяемый. Этапы выполняются агентами Flue:
+`NewsPlannerAgent`, `CompanyConsequencesAgent` и `RoleProjectionAgent` в
+`src/agents/news-analysis.ts`. Оркестратор вызывает `init → dispatch → read`;
+каждый этап получает отдельную conversation, чтобы контексты компаний и ролей
+не объединялись. Инструмент результата имеет Valibot-схему, пишет именованную
+data part и возвращает `terminate: true`, завершая успешный этап без второго
+запроса для подтверждения. Доменные данные дополнительно проверяются Zod.
+Прямых `createModels().complete()` в reasoner нет. `pi-ai` остаётся только в
+`src/config/model.ts`: это штатный API custom provider самого Flue для нашего
+OpenAI-compatible шлюза, а также зависимость `@flue/runtime`.
+Provider-side strict sampling и forced tool choice не заявляются. Один
+вызов работает с одной уже выбранной компанией; обход всего реестра моделью здесь
+не реализован. Контекст свыше 180 000 сериализованных символов отклоняется с 422
+без отсечения документов. Пропуск, ошибка, неструктурированный ответ и upstream
+failure не становятся пустым успешным инсайтом. Отдельного прикладного retry/repair
+нет; Flue может продолжить модельный turn после ошибки аргументов инструмента.
+Результат принимается при ровно одном успешном итоговом вызове за ответ; перед ним агент может вызвать разрешённые сервисные инструменты. Итог должен быть единственным инструментом в своём model turn. Невалидный аргумент допускает штатное исправление Flue; дополнительные успешные итоги отклоняются. Повтор попытки
+submission отключён (`maxAttempts: 1`), ожидание ограничено 180 секундами, после
+таймаута выполняется durable abort. Транспортные повторы остаются политикой Flue.
+
+`npm run news:worker` поднимает тот же Flue runtime с PostgreSQL (`DATABASE_URL`)
+перед запуском обработчика. В Vite/собранном AgentService runtime уже создаётся
+Flue, второй runtime внутри обработчиков не запускается. `NEWS_TRACE_DIRECTORY`
+сохраняет события conversation вместо сырого ответа отдельного LLM SDK.
+
+Каждый draft содержит `effectKey,literalObjectRef,conclusion,status,sourceRefs` и
+необязательное дерево `calculation`. Source refs — точные
+`{materialId,versionId,contentHash}` из переданного контекста, включая текущую
+news-version. Existing effect сохраняет буквальную identity; actual previous
+revision задаёт оркестратор, не модель. InsightService проверяет источники и
+атомарно сохраняет весь batch с квитанцией, включая `drafts:[]`. Оставшиеся вне
+ответа прежние эффекты не удаляются и не обнуляются. Decimal-арифметика и domain
+state принадлежат InsightService; корректность исходных экономических оснований
+не следует из успешной записи или расчёта.
+
+Ответ содержит сохранённую квитанцию и `reasoningInvoked`. Повтор версии не
+вызывает модель; после следующего исправления возвращает исторические ревизии
+этого анализа с `resultSemantics=saved_analysis_revisions_not_latest_heads` и не
+откатывает актуальное состояние. Последние heads читаются через InsightService
+GET effects. Изменение `asOf`/bankProfileId уже обработанной версии возвращает
+конфликт. Внутри одного процесса одинаковые одновременные команды разделяют
+выполняемый вызов; распределённый lease между несколькими AgentService не
+реализован. Атомарность/идемпотентность хранения остаётся у InsightService.
+
+`tests/news-analysis.test.ts` проверяет маршрут через настоящие HTTP-клиенты и
+управляемые upstream servers. `tests/news-reasoner.test.ts` вызывает настоящий
+provider adapter через локальный Chat Completions/SSE stub. Это проверка протокола
+и состояния, не доказательство качества live-модели или поиска адресатов.
+
+Для отдельного трёхпроцессного HTTP-прогона без рабочей chat-БД:
+
+```sh
+node --experimental-strip-types tests/helpers/news-tracer-server.ts
+```
+
+Нужны вышеуказанные service URLs/secret и свободный `PORT` (по умолчанию 5183).
+Этот **тестовый** entrypoint использует тот же router/orchestrator/HTTP-clients,
+но явно управляемый fixture reasoner: `local-contract-104`, `LOT-104`, 104 единицы,
+300 → 450 (`v1`) → 360 (`v2`); `v3` возвращает пустой draft batch. Источники и
+хэши берутся из настоящего ContextService, revisions сохраняет настоящий
+InsightService. Защищённый `GET /__test/reasoning-calls` показывает число вызовов и
+`adapter=controlled_fixture_not_live_model`. Этот endpoint и fixture не входят в
+production app. Реальные суммы/договоры/полномочия из такого прогона не выводятся.
+
 ## Сборка и эксплуатация
+
+### Новостной worker и малый сервисный сценарий
+
+`npm run news:worker` запускает тот же news flow на `127.0.0.1:5184`, с PostgreSQL для Flue.
+Нужны `INTERNAL_SECRET`, `CONTEXT_SERVICE_URL` (с `/context-service`), `INSIGHT_SERVICE_URL`
+(с `/insight-service`) и существующие `LLM_*`. ContextService использует Qdrant и локальный
+embedding/reranker sidecar. InsightService разрешает источники через ContextService и хранит
+канонические effects, immutable receipts и lease/checkpoint новостных jobs.
+
+`POST /agent-service/internal/news-analysis/events` принимает исходную новость; `/news` ставит
+задание по существующей версии материала. `GET /jobs/:jobId` возвращает checkpoint/result.
+`completed` означает завершённую обработку, а полнота выбранных областей указана отдельно
+в `coverage.completeForSelectedScopes`. Поиск адресатов остаётся `discoveryExhaustive=false`.
+Ошибки компаний/роли переводят job в `failed`; внутренний
+`POST /insight-service/internal/news-jobs/:jobId/retry` повторяет только неуспешные компании,
+сохраняет план и успешные receipts и пересобирает затронутые ролевые проекции.
+
+Явно синтетический сценарий создаёт три профиля, плавающий/фиксированный договоры,
+вложенную группу с повторным путём к владельцу и две роли с разными read grants:
+
+```powershell
+$env:NEWS_DEMO_NEWS_ID = 'my-service-smoke' # Новый ID для нового опыта; тот же для correction/replay.
+$env:NEWS_DEMO_OUTPUT = '.test-data/news-v1.json' # Необязательно; каталог должен существовать.
+node --env-file=.env --experimental-strip-types scripts/news-demo.ts
+$env:NEWS_DEMO_OUTPUT = '.test-data/news-v2.json'
+node --env-file=.env --experimental-strip-types scripts/news-demo.ts --correction
+```
+
+Сценарий проверяет −20000 → −15000 RUB стандартного месячного run-rate по К-204,
+тот же effect ID и actual previous revision, отсутствие выдуманного числового эффекта по
+фиксированному договору/магазину, однократный вклад в группы и разрешённые факты/группы ролей.
+Неполный или ошибочный результат даёт ненулевой exit code. Повтор ID возвращает сохранённый job,
+поэтому сам по себе не означает новый вызов модели. Старые результаты не перезаписываются.
+
+Групповые итоги используют канонические числа только при совместимых metric/basis/unit/period
+и явном sourced aggregation rule. Пропущенный старый эффект сохраняется в InsightService и
+перечисляется в `unrevisedEffectIds`, блокируя полный итог. Пустой receipt не доказывает нулевого
+вклада. `contextComplete` сохраняется в receipt, включая replay; старое отсутствующее поле
+считается неизвестной полнотой. Это полнота набора источников, не доказательство экономического вывода.
+
+Роли получают только source-complete разрешённые facts. Группа передаётся роли целиком только
+при разрешении всех компаний, источников и фактов её проекции; узкий grant не раскрывает сводку
+других компаний. Membership и право чтения задаёт backend, а не название должности.
+
+`NEWS_TRACE_DIRECTORY` включает локальные traces этапов: conversation ID, `elapsedMs`, события,
+provider `usage` и ошибки. Traces содержат предоставленные исходники/ответы; храните их как
+служебные данные с тем же доступом. Настроенные LLM/internal/database credentials редактируются.
+Нулевая `usage.cost` в custom-provider metadata означает отсутствие настроенного тарифа, не бесплатность вызовов.
+
+Многозапросный `/internal/context/retrieve` имеет HTTP-бюджет 120 секунд: локальный CPU
+reranker обслуживает параллельные компании последовательно. Обычные запросы сохраняют
+15-секундный бюджет; истечение срока возвращает `UPSTREAM_TIMEOUT`.
+Предварительные повторные identities могут быть исправлены финальной проверкой. Дословные
+аспекты одного качественного риска компании с `evidenceStatus=unknown` объединяются с
+сохранением источников; деньги, договоры и конфликтующие статусы не объединяются.
 
 ```sh
 npm run typecheck
@@ -122,7 +283,7 @@ npm start
 ```
 
 Production читает переменные процесса, без автоматической загрузки .env. Для ручного запуска с файлом:
-`node --env-file=.env dist/server.mjs`. Переменная PORT задаёт порт (по умолчанию 3000).
+`node --env-file=.env dist/service.mjs`. Переменная PORT задаёт порт (по умолчанию 3000).
 Артефакту нужны production node_modules, migrations и sql рядом с dist. Dockerfile включает их.
 Все прикладные SQL-запросы лежат в sql/chats, sql/migrations, sql/connection и sql/transactions;
 TypeScript загружает их при инициализации модулей и передаёт значения параметрами.
@@ -168,3 +329,38 @@ endpoint. Проверяются SQL, контекст gateway, владение
 [SDK](https://flueframework.com/docs/sdk/overview/), [Node](https://flueframework.com/docs/guide/node-target/).
 Структура определений и общих настроек ориентируется на [flue-agents](https://github.com/getsentry/flue-agents);
 его старый API 0.11 заменён API Flue 2.
+
+### Типизированные инструменты профильных агентов
+
+Три агента `news-planner`, `company-consequences`, `role-projection` сохраняются. Planner получает `news_search_external_publications` (существующие stored/TASS lead search) и `context_search_public_materials`; company — `context_find_company_facts`; чтение точного разрешённого оригинала доступно через `context_read_original`. Роль может читать только версии из уже прошедших host grant-проверку facts. Сервисы выполняют поиск, чтение, хранение и валидацию; смысловой анализ выполняют Flue-агенты.
+
+На этап: максимум 4 реальных сервисных операции, 2 поиска по загруженному корпусу и 2 внешних поиска внутри общего лимита. State/counters/catalog хранятся в `usePersistentState`. Дубликат запроса, отсутствие новых источников или превышение контекста прекращают соответствующий поиск. Фиксированные company/asOf и разрешённый каталог задаёт host. Модель не получает произвольных URL, SQL, credentials или прав записи. Новый источник расширяет source/object handles только после проверенного tool result. Native reasoner не запускает прежний host follow-up по финальному JSON; реальный добор теперь вызывает модель.
+
+`NEWS_SERVICE_URL` — optional base URL существующего WebNewsParserService с `/news-parser-service`. Без него tool возвращает `news_service_not_configured`. Нынешние два API возвращают lead observations, без publisher version/full text. Их observationHash не является source ref оригинала; такие candidates не сохраняются как подтверждённые первоисточники. Подробности работающего контракта и необходимых изменений: [news-source-boundary.md](docs/news-source-boundary.md).
+
+`retrievalLimit` (1–12, optional) в news job ограничивает первоначальный top-k; полный текст выбранных документов не обрезается, а профиль и связанные новые версии могут расширить набор. Context возвращает новейшие известные версии выбранного материала вместе с историческим попаданием. При равном knownAt opaque version IDs не сортируются как время: сохраняются все кандидаты; correction lineage и содержимое проверяет агент. SearchHit.relatedVersions отделяет эти refs от refs старого excerpt.
+
+У новых event imports сохраняется provenance: event_payload, полученная ссылка (если она есть в HTTP import), время получения, полнота текста и исходный ExternalId. Локальные PDF загружаются в Context как uploaded/excerpt с явным locator; автоматическое внешнее получение PDF не заявляется.
+
+### Kafka: получение события и долговечное задание
+
+Consumer принимает текущий `NewsEventMessage` WebNewsParserService из `news-parser.news`: `Source`, `ExternalId`, `Title`, `Text`, `PublishedAt` (также поддержан camelCase). `Text` может быть пустым: upstream заполняет его из Subtitle. Материал сохраняется как `event_payload/lead`, без выдуманных URL и версии издателя.
+
+Для включения задайте `NEWS_KAFKA_ENABLED=true`, `KAFKA_BROKERS=host:port` (несколько через запятую), существующие `INTERNAL_SECRET`, `CONTEXT_SERVICE_URL`, `INSIGHT_SERVICE_URL` и конфигурацию модели. Все экземпляры используют один стабильный `NEWS_KAFKA_GROUP_ID` (default `agent-service-news-v1`), отдельный от других потребителей. `NEWS_KAFKA_TOPIC` default `news-parser.news`; `NEWS_KAFKA_FROM_BEGINNING=true` читает историю только при отсутствии сохранённого offset группы. Broker address должен быть доступен из контейнера/процесса AgentService, включая адреса из advertised listeners. TLS/SASL переменные перечислены в [.env.example](.env.example).
+
+Порядок: Kafka → точная версия материала в ContextService → долговечное news job в InsightService → ручной commit следующего offset → фоновый Flue-анализ → сохранённый инсайт. Подтверждение Kafka означает сохранённое задание; его завершение проверяется через `/internal/news-analysis/jobs/:id`. Повторная доставка использует прежнее время наблюдения и job ID. Ошибка backend/commit оставляет событие для повторной обработки. Это at-least-once доставка с идемпотентной записью.
+
+Невалидный JSON/контракт или постоянный отказ ingress приостанавливает раздел без commit и без пропуска следующих записей. `/agent-service/ready` возвращает 503; защищённый `GET /agent-service/internal/news-analysis/kafka` показывает topic/partition/offset/hash и состояние consumer. Полный payload и секреты в логи consumer не выводятся. Оператор устраняет причину и перезапускает consumer; невалидную запись необходимо отдельно разобрать и согласованно исправить/карантинировать до возобновления. Автоматического DLQ или пропуска нет; один перезапуск не исправит невалидную запись.
+
+`npm start` и Docker запускают `dist/service.mjs`: он дожидается остановки news consumer, затем Flue. Сгенерированный Flue `dist/server.mjs` не используется как entry сервиса.
+
+Правила идентичности бизнес-вопроса, unknown/conditional, бюджетов и фактической глубины: [news-mechanism-rules.md](docs/news-mechanism-rules.md).
+
+Границы TypeScript-модуля, владельцы admission/lease/company execution/projections,
+импорты для интеграции и автоматическая проверка зависимостей:
+[news-analysis-architecture.md](docs/news-analysis-architecture.md).
+
+
+
+
+Текущий протокол: отдельный реестр сигналов, повторное использование по версии источника, полный ОКВЭД, проверка тематической связи собственных документов и автоматический OCR — [правила механизма](docs/news-mechanism-rules.md).

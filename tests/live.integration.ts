@@ -25,7 +25,7 @@ beforeAll(async () => {
     probe.close((error) => (error ? reject(error) : resolve())),
   );
   baseUrl = `http://127.0.0.1:${port}/agent-service`;
-  child = fork('dist/server.mjs', [], {
+  child = fork('dist/service.mjs', [], {
     env: { ...process.env, PORT: String(port), DATABASE_POOL_MAX: '10' },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });

@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { readSql } from '../src/shared/read-sql.ts';
 import type { Sql } from '../src/shared/sql.ts';
+import { createHttpService } from './helpers/http-service.ts';
 import { aliceUserId, bobUserId, gatewayHeaders } from './helpers/identity.ts';
 import { createLlmServer } from './helpers/llm-server.ts';
 
@@ -35,8 +36,8 @@ let baseUrl: string;
 let port: number;
 let output = '';
 
-async function startServer() {
-  child = fork('dist/server.mjs', [], {
+async function startServer(environment: NodeJS.ProcessEnv = {}) {
+  child = fork('dist/service.mjs', [], {
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
@@ -44,6 +45,7 @@ async function startServer() {
       DATABASE_POOL_MAX: process.env.TEST_DATABASE_URL ? '10' : '1',
       PORT: String(port),
       LLM_BASE_URL: model.url,
+      ...environment,
     },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
@@ -187,4 +189,142 @@ it('lets the chat CLI finish its answer after stdin EOF without prompting a clos
   expect(code, stderr).toBe(0);
   expect(stdout).toContain('История: cli-eof-check');
   expect(stderr).not.toContain('ERR_USE_AFTER_CLOSE');
+});
+
+it('dispatches both company phases through the agents registered in the built application', async () => {
+  const asOf = '2026-10-22T08:00:00Z';
+  const request = {
+    companyId: '11111111-1111-4111-8111-111111111111',
+    newsMaterialId: 'synthetic-built-news',
+    newsVersionId: 'v1',
+    asOf,
+  };
+  const writes: unknown[] = [];
+  const modelRequests: unknown[] = [];
+  const upstream = await createHttpService(async (incoming) => {
+    expect(incoming.headers.get('X-Internal-Secret')).toBe('built-news-test-secret');
+    const path = new URL(incoming.url).pathname;
+    if (path.endsWith('/news-jobs/claim')) return Response.json(null);
+    if (path.endsWith('/internal/context'))
+      return Response.json({
+        news: {
+          materialId: request.newsMaterialId,
+          versionId: 'v1',
+          sourceId: 'synthetic-source',
+          kind: 'news',
+          title: 'Synthetic news',
+          text: 'Synthetic event without confirmed exposure.',
+          knownAt: asOf,
+          companyIds: [],
+          bankProfileIds: [],
+          contentHash: 'a'.repeat(64),
+        },
+        materials: [],
+        coverage: {
+          complete: true,
+          materialCount: 0,
+          companyMaterialCount: 0,
+          marketMaterialCount: 0,
+          previousNewsVersionCount: 0,
+          characters: 100,
+          asOf,
+        },
+      });
+    if (path.endsWith('/internal/effects')) return Response.json({ effects: [] });
+    if (path.endsWith('/calculations/preview')) return Response.json([]);
+    if (path.endsWith('/internal/analyses')) {
+      if (incoming.method === 'GET') return Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+      writes.push(await incoming.json());
+      return Response.json({
+        ...request,
+        analysisId: 'synthetic-built-analysis',
+        duplicate: false,
+        resultSemantics: 'saved_analysis_revisions_not_latest_heads',
+        completedAt: asOf,
+        effects: [],
+      });
+    }
+    return Response.json({ code: 'UNEXPECTED_PATH' }, { status: 404 });
+  });
+  const llm = await createHttpService(async (incoming) => {
+    expect(incoming.headers.get('authorization')).toBe('Bearer test-only-key');
+    modelRequests.push(await incoming.json());
+    const chunk = (delta: unknown, finish: string | null) =>
+      `data: ${JSON.stringify({
+        id: `synthetic-${modelRequests.length}`,
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'test-model',
+        choices: [{ index: 0, delta, finish_reason: finish }],
+      })}\n\n`;
+    return new Response(
+      chunk({ role: 'assistant' }, null) +
+        chunk(
+          {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'synthetic-result',
+                type: 'function',
+                function: { name: 'submit_news_analysis', arguments: '{"drafts":[]}' },
+              },
+            ],
+          },
+          null,
+        ) +
+        chunk({}, 'tool_calls') +
+        'data: [DONE]\n\n',
+      {
+        headers: { 'Content-Type': 'text/event-stream' },
+      },
+    );
+  });
+  try {
+    await stopServer();
+    await startServer({
+      INTERNAL_SECRET: 'built-news-test-secret',
+      CONTEXT_SERVICE_URL: `${upstream.url}/context-service`,
+      INSIGHT_SERVICE_URL: `${upstream.url}/insight-service`,
+      LLM_BASE_URL: `${llm.url}/v1`,
+    });
+    const response = await fetch(`${baseUrl}/internal/news-analysis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Secret': 'built-news-test-secret',
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json();
+    expect(response.status, JSON.stringify(result)).toBe(200);
+    expect(result).toMatchObject({
+      analysisId: 'synthetic-built-analysis',
+      reasoningInvoked: true,
+      effects: [],
+    });
+    expect(modelRequests).toHaveLength(2);
+    expect(writes).toEqual([
+      {
+        ...request,
+        drafts: [],
+        contextComplete: true,
+        retrievalTrace: [
+          {
+            round: 0,
+            queries: [],
+            retrievedSources: [
+              { materialId: request.newsMaterialId, versionId: 'v1', contentHash: 'a'.repeat(64) },
+            ],
+            stopReason: 'agent_tools',
+          },
+        ],
+      },
+    ]);
+  } finally {
+    await stopServer();
+    await llm.close();
+    await upstream.close();
+    await startServer();
+  }
 });

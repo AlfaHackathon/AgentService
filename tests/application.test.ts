@@ -50,6 +50,13 @@ describe('HTTP access and metadata', () => {
   it('uses the gateway service prefix and requires its user context on every native operation', async () => {
     const service = mountService(app);
     const chat = await chats.create(aliceUserId);
+    const disabledNews = await service.request('/agent-service/internal/news-analysis', {
+      method: 'POST',
+      headers: headers(alice),
+      body: '{}',
+    });
+    expect(disabledNews.status).toBe(503);
+    expect(await disabledNews.json()).toMatchObject({ code: 'NEWS_ANALYSIS_DISABLED' });
     expect((await service.request('/agent-service/chats')).status).toBe(401);
     expect(
       (

@@ -1,0 +1,62 @@
+import type { EffectDraft } from '../contracts/analysis.ts';
+import { NewsAnalysisError } from '../contracts/errors.ts';
+import type { ContextClient } from '../retrieval/context-client.ts';
+import { validateApplicability } from './applicability.ts';
+export function sourceKey(source: { materialId: string; versionId: string; contentHash: string }) {
+  return JSON.stringify([source.materialId, source.versionId, source.contentHash]);
+}
+
+export function validateReferences(
+  drafts: EffectDraft[],
+  context: Awaited<ReturnType<ContextClient['getContext']>>,
+  companyId: string,
+  requireUniqueKeys = true,
+) {
+  const available = new Set([context.news, ...context.materials].map(sourceKey));
+  const currentNews = sourceKey(context.news);
+  const keys = new Set<string>();
+  for (const draft of drafts) {
+    if (draft.question)
+      validateApplicability(
+        draft.assessment,
+        draft.impact?.evidenceStatus,
+        !!draft.calculation,
+        [context.news, ...context.materials],
+        companyId,
+      );
+    if (requireUniqueKeys && keys.has(draft.effectKey))
+      throw new NewsAnalysisError(422, 'DUPLICATE_EFFECT_KEY', 'Draft batch repeats an effect key');
+    keys.add(draft.effectKey);
+    if (
+      draft.assessment?.applicability?.sourceRefs.some(
+        (r) => !draft.sourceRefs.some((s) => sourceKey(s) === sourceKey(r)),
+      )
+    )
+      throw new NewsAnalysisError(
+        422,
+        'UNBOUND_APPLICABILITY',
+        'Applicability must cite this question sources',
+      );
+    if (
+      draft.assessment?.conditions.some(
+        (c) =>
+          c.sourceRefs.some((r) => !draft.sourceRefs.some((s) => sourceKey(s) === sourceKey(r))) ||
+          (c.status !== 'unknown' && !c.sourceRefs.length),
+      )
+    )
+      throw new NewsAnalysisError(
+        422,
+        'UNBOUND_CONDITION',
+        'Applicability evidence must be cited by this question',
+      );
+    if (
+      !draft.sourceRefs.some((source) => sourceKey(source) === currentNews) ||
+      draft.sourceRefs.some((source) => !available.has(sourceKey(source)))
+    )
+      throw new NewsAnalysisError(
+        422,
+        'UNBOUND_SOURCE_REF',
+        'Draft must cite the current news and only exact supplied source versions',
+      );
+  }
+}

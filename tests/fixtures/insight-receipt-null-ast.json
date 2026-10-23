@@ -1,0 +1,57 @@
+{
+  "analysisId": "analysis_3e6233fd57ca10a68faf5c8b60e4c8fea1a22157d1c0e42dbb3901f72acd90de",
+  "companyId": "94ae3113-e339-47b5-b394-7626c0fd0808",
+  "bankProfileId": "U_96",
+  "newsMaterialId": "local-tariff-news",
+  "newsVersionId": "v1",
+  "asOf": "2026-10-21T07:20:00+00:00",
+  "completedAt": "2026-10-21T12:54:04.3949963+00:00",
+  "duplicate": false,
+  "resultSemantics": "saved_analysis_revisions_not_latest_heads",
+  "effects": [
+    {
+      "effectId": "effect_3303fb36f1e8a61d2a4400db7d465df11edb6d07660909df33e960cb5805d10e",
+      "revisionId": "revision_c2d1380c395147ddb461d8b8c48edf19",
+      "previousRevisionId": null,
+      "duplicate": false,
+      "currentRevision": {
+        "revisionId": "revision_c2d1380c395147ddb461d8b8c48edf19",
+        "previousRevisionId": null,
+        "newsVersionId": "v1",
+        "asOf": "2026-10-21T07:20:00+00:00",
+        "conclusion": "Synthetic planned cost increase for 104 units; no act or payment is confirmed.",
+        "status": "forecast",
+        "sourceRefs": [
+          {
+            "materialId": "local-contract-104",
+            "versionId": "v1",
+            "contentHash": "dd2a3259a28ece50d944df88860c23d036352fe2b5418ea66908712942975278"
+          },
+          {
+            "materialId": "local-tariff-news",
+            "versionId": "v1",
+            "contentHash": "19a2257a987b0a7d3e3efb8e832a6758f374b659e2491e97d64097090b10f7fc"
+          }
+        ],
+        "calculation": {
+          "expression": {
+            "kind": "multiply",
+            "value": null,
+            "left": {
+              "kind": "subtract",
+              "value": null,
+              "left": { "kind": "value", "value": "450", "left": null, "right": null },
+              "right": { "kind": "value", "value": "300", "left": null, "right": null }
+            },
+            "right": { "kind": "value", "value": "104", "left": null, "right": null }
+          },
+          "unit": "RUB",
+          "period": "Synthetic planned acceptance; no realized expense"
+        },
+        "calculationResult": "15600",
+        "calculationArithmeticOnly": true,
+        "createdAt": "2026-10-21T12:54:04.3949963+00:00"
+      }
+    }
+  ]
+}
