@@ -12,7 +12,6 @@ import type {
 import { instantAfter } from '../contracts/timestamps.ts';
 import type { FlowContextClient } from '../retrieval/flow-clients.ts';
 import type { NewsAnalyzer } from './company-analysis.ts';
-import { chooseDepth } from './depth-policy.ts';
 import { inspectEvidenceRelevance } from './evidence-relevance.ts';
 
 // One company's depth decision, durable watch registration and canonical receipt.
@@ -92,14 +91,12 @@ export async function runCompany(input: {
       ...(request.trigger ? { trigger: request.trigger } : {}),
       ...(profile?.bankProfileId ? { bankProfileId: profile.bankProfileId } : {}),
     };
-    const previous = await analyzer.currentEffects(analysisInput);
     const inventory = await context.evidence(companyId, request.asOf);
-    let depth = chooseDepth({
+    let depth = await analyzer.dependencies.insights.depth({
       companyId,
       request,
       plan: scopedPlan,
       inventory,
-      previous,
       hasProfile: !!profile,
       newsCorrection: !!news.correctsVersionId,
     });
@@ -109,12 +106,11 @@ export async function runCompany(input: {
         classifyRelevance(news, scopedPlan, sources),
       );
       if (relevance)
-        depth = chooseDepth({
+        depth = await analyzer.dependencies.insights.depth({
           companyId,
           request,
           plan: scopedPlan,
           inventory,
-          previous,
           hasProfile: !!profile,
           newsCorrection: !!news.correctsVersionId,
           relevance,

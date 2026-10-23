@@ -3,9 +3,11 @@ import { NewsFlow } from '../application/news-flow.ts';
 import { SourceChangePump } from '../application/source-change-pump.ts';
 import { createNativeNewsReasoner } from '../reasoning/company-reasoner.ts';
 import { createFlowReasoner } from '../reasoning/flow-reasoner.ts';
+import { CompanyClient } from '../retrieval/company-client.ts';
 import { ContextClient } from '../retrieval/context-client.ts';
 import { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
 import { InsightClient } from '../retrieval/insight-client.ts';
+import { InsightDomainClient } from '../retrieval/insight-domain-client.ts';
 import type { NewsAnalysisRouteOptions } from '../transport/http/routes.ts';
 import { serviceSettingsSchema } from '../transport/http/settings.ts';
 import { createNewsKafkaConsumer } from '../transport/kafka/consumer.ts';
@@ -19,11 +21,16 @@ export function createConfiguredNewsAnalysis(
   if (!settings.success) {
     if (environment.NEWS_KAFKA_ENABLED === 'true')
       throw new Error(
-        'News Kafka requires configured ContextService, InsightService and internal admission',
+        'News Kafka requires configured CompanyService, ContextService, InsightService and internal admission',
       );
     return undefined;
   }
-  const { INTERNAL_SECRET: secret, CONTEXT_SERVICE_URL, INSIGHT_SERVICE_URL } = settings.data;
+  const {
+    INTERNAL_SECRET: secret,
+    CONTEXT_SERVICE_URL,
+    INSIGHT_SERVICE_URL,
+    COMPANY_SERVICE_URL,
+  } = settings.data;
   const analyzer = new NewsAnalyzer({
     context: new ContextClient(CONTEXT_SERVICE_URL, secret),
     insights: new InsightClient(INSIGHT_SERVICE_URL, secret),
@@ -31,6 +38,8 @@ export function createConfiguredNewsAnalysis(
   });
   const flow = new NewsFlow({
     context: new FlowContextClient(CONTEXT_SERVICE_URL, secret),
+    companies: new CompanyClient(COMPANY_SERVICE_URL, secret),
+    projections: new InsightDomainClient(INSIGHT_SERVICE_URL, secret),
     jobs: new FlowJobClient(INSIGHT_SERVICE_URL, secret),
     analyzer,
     reasoner: createFlowReasoner(environment),
@@ -40,6 +49,7 @@ export function createConfiguredNewsAnalysis(
     new FlowJobClient(INSIGHT_SERVICE_URL, secret),
     analyzer,
     flow,
+    new CompanyClient(COMPANY_SERVICE_URL, secret),
   );
   const kafka = createNewsKafkaConsumer(flow, environment);
   flow.start();

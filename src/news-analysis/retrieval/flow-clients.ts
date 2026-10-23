@@ -2,13 +2,10 @@ import { z } from 'zod';
 import { materialSchema, sourceRefSchema } from '../contracts/analysis.ts';
 import { evidenceInventorySchema } from '../contracts/depth.ts';
 import {
-  companyProfileSchema,
   type FlowCheckpoint,
   type FlowRequest,
-  groupExpansionSchema,
   jobSchema,
   type NewsJob,
-  roleProfileSchema,
 } from '../contracts/flow.ts';
 import { sourceChangeSchema, sourceCursorSchema } from '../contracts/source-changes.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
@@ -49,12 +46,6 @@ export class FlowContextClient {
       await this.http.request('/internal/material-versions', value),
     );
   }
-  async companies(asOf: string) {
-    return parseResponse(
-      z.object({ companies: z.array(companyProfileSchema) }),
-      await this.http.request(`/internal/companies?asOf=${encodeURIComponent(asOf)}`),
-    ).companies;
-  }
   async evidence(companyId: string, asOf: string) {
     return parseResponse(
       evidenceInventorySchema,
@@ -62,26 +53,6 @@ export class FlowContextClient {
         `/internal/companies/${encodeURIComponent(companyId)}/evidence?asOf=${encodeURIComponent(asOf)}`,
       ),
     );
-  }
-  async groups(asOf: string) {
-    return parseResponse(
-      z.object({ groups: z.array(z.object({ groupId: z.string() })) }),
-      await this.http.request(`/internal/groups?asOf=${encodeURIComponent(asOf)}`),
-    ).groups;
-  }
-  async expand(id: string, asOf: string) {
-    return parseResponse(
-      groupExpansionSchema,
-      await this.http.request(
-        `/internal/groups/${encodeURIComponent(id)}?asOf=${encodeURIComponent(asOf)}`,
-      ),
-    );
-  }
-  async roles(asOf: string) {
-    return parseResponse(
-      z.object({ roles: z.array(roleProfileSchema) }),
-      await this.http.request(`/internal/roles?asOf=${encodeURIComponent(asOf)}`),
-    ).roles;
   }
   async search(query: string, asOf: string, publicOnly = false) {
     return parseResponse(
@@ -121,13 +92,24 @@ export class FlowJobClient {
       }),
     );
   }
-  async sourceCursor() {
-    return parseResponse(sourceCursorSchema, await this.http.request('/internal/source-cursor'));
-  }
-  async advanceSourceCursor(cursor: z.infer<typeof sourceCursorSchema>) {
+  async sourceCursor(source: 'context' | 'company' = 'context') {
     return parseResponse(
       sourceCursorSchema,
-      await this.http.request('/internal/source-cursor', cursor),
+      await this.http.request(
+        `/internal/source-cursor${source === 'context' ? '' : '?source=company'}`,
+      ),
+    );
+  }
+  async advanceSourceCursor(
+    cursor: z.infer<typeof sourceCursorSchema>,
+    source: 'context' | 'company' = 'context',
+  ) {
+    return parseResponse(
+      sourceCursorSchema,
+      await this.http.request(
+        `/internal/source-cursor${source === 'context' ? '' : '?source=company'}`,
+        cursor,
+      ),
     );
   }
   async get(id: string) {

@@ -1,42 +1,9 @@
 import type { z } from 'zod';
 import type { materialSchema } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
-import type {
-  companyProfileSchema,
-  NewsPlan,
-  Segment,
-  segmentBatchSchema,
-} from '../contracts/flow.ts';
+import type { NewsPlan, Segment, segmentBatchSchema } from '../contracts/flow.ts';
 import { sourceKey } from '../retrieval/source-catalog.ts';
 import { type SourceUnit, sourceUnits } from '../retrieval/source-units.ts';
-export function buildSegments(
-  profiles: z.infer<typeof companyProfileSchema>[],
-  granularity: 'activity' | 'broad' = 'activity',
-): Segment[] {
-  const groups = new Map<string, Segment>();
-  for (const p of profiles)
-    for (const code of new Set(
-      p.industryCodes
-        .map((c) =>
-          /^\d{2}(?:\.\d{1,2}){0,2}$/.test(c)
-            ? granularity === 'broad'
-              ? c.slice(0, 2)
-              : c
-            : null,
-        )
-        .filter((c) => c !== null),
-    )) {
-      const key = `${granularity === 'broad' ? 'okved2' : 'activity'}:${code}`;
-      const g = groups.get(key) ?? { key, labels: [], companyIds: [], profileRefs: [] };
-      g.labels = [...new Set([...g.labels, p.description.split(';')[0] ?? p.description])].sort();
-      g.companyIds = [...new Set([...g.companyIds, p.companyId])].sort();
-      g.profileRefs = [
-        ...new Map([...g.profileRefs, ...p.sourceRefs].map((r) => [sourceKey(r), r])).values(),
-      ];
-      groups.set(key, g);
-    }
-  return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key));
-}
 export function validateSegmentPlan(
   plan: NewsPlan,
   segments: Segment[],

@@ -2,15 +2,15 @@ import type { z } from 'zod';
 import type { materialSchema } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { FlowCheckpoint, FlowReasoner, FlowRequest, NewsPlan } from '../contracts/flow.ts';
-import { instantAfter } from '../contracts/timestamps.ts';
-import type { FlowContextClient } from '../retrieval/flow-clients.ts';
+import type { CompanyClient } from '../retrieval/company-client.ts';
+import type { InsightDomainClient } from '../retrieval/insight-domain-client.ts';
 import type { NewsAnalyzer } from './company-analysis.ts';
-import { canonicalFacts, groupProjection, priority } from './projections.ts';
 import { projectRoleView } from './role-projection.ts';
 
 // Rebuild views from current canonical heads; never substitute job receipts for later revisions.
 export async function projectJobResult(input: {
-  context: FlowContextClient;
+  companies: CompanyClient;
+  projections: InsightDomainClient;
   analyzer: NewsAnalyzer;
   reasoner: FlowReasoner;
   request: FlowRequest;
@@ -22,7 +22,8 @@ export async function projectJobResult(input: {
   ensureLease: () => void;
 }) {
   const {
-    context,
+    companies,
+    projections,
     analyzer,
     reasoner,
     request,
@@ -33,16 +34,16 @@ export async function projectJobResult(input: {
     save,
     ensureLease,
   } = input;
-  const roles = (await context.roles(request.asOf)).filter((r) =>
-    request.personIds.length
-      ? request.personIds.includes(r.personId)
-      : r.allowedCompanyIds.some((id) => selectedCompanyIds.includes(id)),
-  );
+  const {
+    roles,
+    missingPersonIds,
+    companyIds: roleCompanyIds,
+  } = await companies.roleScope(request.asOf, request.personIds, selectedCompanyIds);
   checkpoint.canonicalCompanies = [];
   const projectionRuns = [...checkpoint.companies];
   const additional = new Set([
     ...(checkpoint.groups ?? []).flatMap((g) => g.companyIds),
-    ...roles.flatMap((r) => r.allowedCompanyIds),
+    ...roleCompanyIds,
   ]);
   for (const companyId of additional) {
     if (projectionRuns.some((c) => c.companyId === companyId)) continue;
@@ -63,42 +64,10 @@ export async function projectJobResult(input: {
       projectionRuns.push({ companyId, status: 'failed', error: 'NO_CANONICAL_STATE' });
     }
   }
-  for (const run of projectionRuns) {
-    if (!run.receipt || run.status !== 'completed') {
-      checkpoint.canonicalCompanies.push(run);
-      continue;
-    }
-    const state = await analyzer.currentEffects({
-      companyId: run.companyId,
-      newsMaterialId: request.newsMaterialId,
-      newsVersionId: request.newsVersionId,
-      asOf: request.asOf,
-    });
-    const heads = new Map(run.receipt.effects.map((e) => [e.effectId, e]));
-    for (const effect of state) {
-      const revision = [...effect.history]
-        .reverse()
-        .find((r) => !instantAfter(r.asOf, request.asOf));
-      if (revision)
-        heads.set(effect.effectId, {
-          effectId: effect.effectId,
-          revisionId: revision.revisionId,
-          previousRevisionId: revision.previousRevisionId,
-          duplicate: false,
-          currentRevision: revision,
-        });
-    }
-    checkpoint.canonicalCompanies.push({
-      ...run,
-      staleEffectIds: state.filter((e) => e.requiresReassessment).map((e) => e.effectId),
-      receipt: { ...run.receipt, effects: [...heads.values()] },
-    });
-  }
+  const canonical = await projections.canonicalFacts(projectionRuns, request.asOf);
+  checkpoint.canonicalCompanies = canonical.companies;
   // Partial views are regenerated from the growing canonical company snapshot.
   checkpoint.roleViews = [];
-  const missingPersonIds = request.personIds.filter(
-    (id) => !roles.some((role) => role.personId === id),
-  );
   for (const role of roles) {
     ensureLease();
     const key = `${role.personId}:${role.companyId}:${role.revisionId}`;
@@ -111,7 +80,7 @@ export async function projectJobResult(input: {
     try {
       checkpoint.roleViews.push({
         key,
-        ...(await projectRoleView(context, reasoner, role, checkpoint, request)),
+        ...(await projectRoleView(projections, reasoner, role, checkpoint, request)),
       });
     } catch (error) {
       checkpoint.roleViews.push({
@@ -124,10 +93,11 @@ export async function projectJobResult(input: {
     }
     await save();
   }
-  const groupViews = (checkpoint.groups ?? []).map((g) =>
-    groupProjection(g, checkpoint.canonicalCompanies ?? checkpoint.companies),
+  const groupViews = await projections.groups(
+    checkpoint.groups ?? [],
+    checkpoint.canonicalCompanies,
+    request.asOf,
   );
-  const facts = canonicalFacts(checkpoint.canonicalCompanies ?? checkpoint.companies);
   checkpoint.result = {
     news: {
       materialId: news.materialId,
@@ -142,18 +112,7 @@ export async function projectJobResult(input: {
         !checkpoint.segmentBatches.some((b) => b.segments.some((s) => s.companyIds.includes(id))),
     ),
     companies: checkpoint.companies,
-    rankedCompanyFacts: facts
-      .map((f) => {
-        const requiresReassessment =
-          checkpoint.canonicalCompanies?.some((c) => c.staleEffectIds?.includes(f.effectId)) ??
-          false;
-        return {
-          ...f,
-          requiresReassessment,
-          priority: requiresReassessment ? 0 : priority(f.revision),
-        };
-      })
-      .sort((a, b) => b.priority - a.priority),
+    rankedCompanyFacts: canonical.facts,
     groups: groupViews,
     roles: checkpoint.roleViews,
     coverage: {

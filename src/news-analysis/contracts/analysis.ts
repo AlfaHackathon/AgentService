@@ -154,7 +154,7 @@ function normalizeResponseExpression(input: unknown): unknown {
   return visit(input, 1);
 }
 
-const responseCalculationSchema = calculationSchema.extend({
+export const responseCalculationSchema = calculationSchema.extend({
   expression: z.preprocess(normalizeResponseExpression, expressionSchema),
 });
 

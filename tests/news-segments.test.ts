@@ -1,14 +1,12 @@
 import { expect, it, vi } from 'vitest';
 import { analyzeSegmentBatch } from '../src/news-analysis/application/segment-analysis.ts';
 import {
-  buildSegments as buildActivitySegments,
   refreshSegmentBatches,
   validateSegmentPlan,
 } from '../src/news-analysis/application/segment-policy.ts';
 import { materialSchema } from '../src/news-analysis/contracts/analysis.ts';
 import {
   checkpointSchema,
-  companyProfileSchema,
   type NewsPlan,
   newsPlanSchema,
   segmentPlanSchema,
@@ -18,8 +16,6 @@ import { extractInventories } from '../src/news-analysis/reasoning/source-signal
 import { FlowContextClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 import { sourceUnits } from '../src/news-analysis/retrieval/source-units.ts';
 
-const buildSegments = (profiles: Parameters<typeof buildActivitySegments>[0]) =>
-  buildActivitySegments(profiles, 'broad');
 const at = '2026-10-23T10:00:00Z',
   a = '11111111-1111-4111-8111-111111111111',
   b = '22222222-2222-4222-8222-222222222222';
@@ -41,19 +37,9 @@ const ref = (s: typeof news) => ({
   versionId: s.versionId,
   contentHash: s.contentHash,
 });
-const profile = (companyId: string, code: string) =>
-  companyProfileSchema.parse({
-    companyId,
-    revisionId: '1',
-    bankProfileId: null,
-    name: 'fixture',
-    description: 'Car retail; region',
-    industryCodes: [code],
-    exposures: [],
-    knownAt: at,
-    sourceRefs: [ref(news)],
-  });
-const segments = buildSegments([profile(a, '45.11'), profile(b, '45.31')]);
+const segments = [
+  { key: 'okved2:45', labels: ['Car retail'], companyIds: [a, b], profileRefs: [ref(news)] },
+];
 const plan: NewsPlan = {
   sourceCoverage: [
     {
@@ -79,11 +65,6 @@ const plan: NewsPlan = {
   ],
   segmentCoverage: [{ segmentKey: 'okved2:45', insightIndexes: [0], reason: 'Fixture source' }],
 };
-it('groups companies once by explicit industry code and keeps ownership in host links', () => {
-  expect(segments).toHaveLength(1);
-  expect(segments[0]?.companyIds).toEqual([a, b]);
-  expect(buildSegments([profile(a, 'unknown')])).toEqual([]);
-});
 it('rejects uncovered segments, out of range indices and foreign sources', () => {
   expect(() =>
     validateSegmentPlan({ ...plan, segmentCoverage: [] }, segments, news, [market]),
@@ -128,7 +109,7 @@ it('retrieves and reasons once for two companies and rejects restricted original
 });
 
 it('refreshes late membership without model work, but invalidates changed niche labels', () => {
-  const first = buildSegments([profile(a, '45.11')]);
+  const first = segments.map((segment) => ({ ...segment, companyIds: [a] }));
   const batch = {
     coverageVersion: 3 as const,
     segments: first,
@@ -138,10 +119,7 @@ it('refreshes late membership without model work, but invalidates changed niche 
     retrievalExhaustive: false,
   };
   expect(refreshSegmentBatches([batch], segments)[0]?.segments[0]?.companyIds).toEqual([a, b]);
-  const changed = buildSegments([
-    profile(a, '45.11'),
-    { ...profile(b, '45.31'), description: 'Parts wholesaler' },
-  ]);
+  const changed = segments.map((segment) => ({ ...segment, labels: ['Parts wholesaler'] }));
   expect(refreshSegmentBatches([batch], changed)).toEqual([]);
 });
 it.each(['original', 'repeated table headers'])(
@@ -342,12 +320,6 @@ it('decodes persisted v2 checkpoints before invalidating their old window covera
   });
   expect(checkpoint.segmentBatches).toHaveLength(1);
   expect(refreshSegmentBatches(checkpoint.segmentBatches, segments)).toEqual([]);
-});
-
-it('separates car retail and parts wholesale before assigning conclusions', () => {
-  const activities = buildActivitySegments([profile(a, '45.11'), profile(b, '45.31')]);
-  expect(activities.map((s) => s.key)).toEqual(['activity:45.11', 'activity:45.31']);
-  expect(activities[0]?.companyIds).toEqual([a]);
 });
 
 it('persists one source extraction and reuses it for a second segment batch, invalidating changed versions', async () => {

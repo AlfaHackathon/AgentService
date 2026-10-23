@@ -1,7 +1,6 @@
 import type { EffectDraft } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
-import { validateApplicability } from './applicability.ts';
 export function sourceKey(source: { materialId: string; versionId: string; contentHash: string }) {
   return JSON.stringify([source.materialId, source.versionId, source.contentHash]);
 }
@@ -9,21 +8,13 @@ export function sourceKey(source: { materialId: string; versionId: string; conte
 export function validateReferences(
   drafts: EffectDraft[],
   context: Awaited<ReturnType<ContextClient['getContext']>>,
-  companyId: string,
+  _companyId: string,
   requireUniqueKeys = true,
 ) {
   const available = new Set([context.news, ...context.materials].map(sourceKey));
   const currentNews = sourceKey(context.news);
   const keys = new Set<string>();
   for (const draft of drafts) {
-    if (draft.question)
-      validateApplicability(
-        draft.assessment,
-        draft.impact?.evidenceStatus,
-        !!draft.calculation,
-        [context.news, ...context.materials],
-        companyId,
-      );
     if (requireUniqueKeys && keys.has(draft.effectKey))
       throw new NewsAnalysisError(422, 'DUPLICATE_EFFECT_KEY', 'Draft batch repeats an effect key');
     keys.add(draft.effectKey);

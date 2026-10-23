@@ -19,6 +19,7 @@ export const internalSecret = z
 export const serviceSettingsSchema = z.object({
   INTERNAL_SECRET: internalSecret,
   CONTEXT_SERVICE_URL: serviceUrl,
+  COMPANY_SERVICE_URL: serviceUrl,
   INSIGHT_SERVICE_URL: serviceUrl,
 });
 export type ServiceSettings = z.infer<typeof serviceSettingsSchema>;

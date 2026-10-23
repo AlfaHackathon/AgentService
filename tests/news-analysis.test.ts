@@ -120,6 +120,27 @@ describe('internal news analysis through actual HTTP clients', () => {
         const body = await incoming.json();
         return Response.json(bundle(body.newsVersionId));
       }
+      if (url.pathname === '/insight-service/internal/analyses/prepare') {
+        const body = await incoming.json();
+        if (
+          body.drafts.some(
+            (draft: EffectDraft) =>
+              effects.has(draft.effectKey) &&
+              effects.get(draft.effectKey)?.literalObjectRef !== draft.literalObjectRef,
+          )
+        )
+          return Response.json(
+            { errorMessage: 'An existing effect must retain its literal object reference' },
+            { status: 422 },
+          );
+        return Response.json({
+          drafts: body.drafts.map((draft: EffectDraft) => ({
+            ...draft,
+            expectedPreviousRevisionId:
+              effects.get(draft.effectKey)?.currentRevision.revisionId ?? null,
+          })),
+        });
+      }
       if (url.pathname === '/insight-service/internal/effects')
         return Response.json({ effects: [...effects.values()] });
       if (url.pathname === '/insight-service/internal/analyses' && incoming.method === 'GET') {

@@ -9,17 +9,21 @@ import {
   type NewsJob,
 } from '../contracts/flow.ts';
 import { instantAfter } from '../contracts/timestamps.ts';
+import type { CompanyClient } from '../retrieval/company-client.ts';
 import type { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
+import type { InsightDomainClient } from '../retrieval/insight-domain-client.ts';
 import type { NewsAnalyzer } from './company-analysis.ts';
 import { runCompany } from './company-run.ts';
 import { selectCompanies } from './company-selection.ts';
 import { projectJobResult } from './job-projection.ts';
 import { admitNewsEvent } from './news-admission.ts';
 import { analyzeSegmentBatch } from './segment-analysis.ts';
-import { buildSegments, refreshSegmentBatches } from './segment-policy.ts';
+import { refreshSegmentBatches } from './segment-policy.ts';
 
 type Dependencies = {
   context: FlowContextClient;
+  companies: CompanyClient;
+  projections: InsightDomainClient;
   jobs: FlowJobClient;
   analyzer: NewsAnalyzer;
   reasoner: FlowReasoner;
@@ -73,7 +77,7 @@ export class NewsFlow {
     }
   }
   private async execute(initial: NewsJob) {
-    const { context, jobs, analyzer, reasoner } = this.deps;
+    const { context, companies, projections, jobs, analyzer, reasoner } = this.deps;
     let job = initial;
     const request = flowRequestSchema.parse(job.request.parameters);
     const checkpoint = checkpointSchema.parse(job.checkpoint);
@@ -186,7 +190,7 @@ export class NewsFlow {
       const plan = checkpoint.plan;
       if (!plan) throw new Error('Missing durable news plan');
       if (!checkpoint.selectedCompanyIds)
-        await selectCompanies(context, analyzer, request, checkpoint, plan);
+        await selectCompanies(companies, analyzer, request, checkpoint, plan);
       else if (checkpoint.recipientCursor) {
         const page = await analyzer.recipients(request.asOf, checkpoint.recipientCursor);
         checkpoint.pendingCompanyIds = [
@@ -204,12 +208,10 @@ export class NewsFlow {
       checkpoint.selectedCompanyIds = selectedCompanyIds;
       await save();
       const profiles = new Map(
-        (await context.companies(request.asOf)).map((p) => [p.companyId.toLowerCase(), p]),
+        (await companies.companies(request.asOf)).map((p) => [p.companyId.toLowerCase(), p]),
       );
       if (!request.projectionOnly && reasoner.segments) {
-        const segments = buildSegments(
-          [...profiles.values()].filter((p) => selectedCompanyIds.includes(p.companyId)),
-        );
+        const segments = await companies.segments(request.asOf, selectedCompanyIds);
         checkpoint.segmentBatches = refreshSegmentBatches(
           checkpoint.segmentBatches,
           segments,
@@ -272,7 +274,8 @@ export class NewsFlow {
         (id) => !checkpoint.companies.some((c) => c.companyId === id),
       );
       await projectJobResult({
-        context,
+        companies,
+        projections,
         analyzer,
         reasoner,
         request,

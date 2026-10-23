@@ -230,6 +230,7 @@ it('dispatches both company phases through the agents registered in the built ap
           asOf,
         },
       });
+    if (path.endsWith('/internal/analyses/prepare')) return Response.json({ drafts: [] });
     if (path.endsWith('/internal/effects')) return Response.json({ effects: [] });
     if (path.endsWith('/calculations/preview')) return Response.json([]);
     if (path.endsWith('/internal/analyses')) {
@@ -283,6 +284,7 @@ it('dispatches both company phases through the agents registered in the built ap
     await stopServer();
     await startServer({
       INTERNAL_SECRET: 'built-news-test-secret',
+      COMPANY_SERVICE_URL: `${upstream.url}/company-service`,
       CONTEXT_SERVICE_URL: `${upstream.url}/context-service`,
       INSIGHT_SERVICE_URL: `${upstream.url}/insight-service`,
       LLM_BASE_URL: `${llm.url}/v1`,

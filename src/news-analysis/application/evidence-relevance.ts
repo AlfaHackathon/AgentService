@@ -1,18 +1,10 @@
 import type { z } from 'zod';
-import type { materialSchema, StoredEffect } from '../contracts/analysis.ts';
+import type { materialSchema } from '../contracts/analysis.ts';
 import type { evidenceInventorySchema } from '../contracts/depth.ts';
 import { type Relevance, relevanceSchema } from '../contracts/relevance.ts';
 import { instantAfter } from '../contracts/timestamps.ts';
 import type { FlowContextClient } from '../retrieval/flow-clients.ts';
 import { sourceKey } from '../retrieval/source-catalog.ts';
-export function relevantEffects(effects: StoredEffect[], mechanisms?: string[]) {
-  return effects.filter(
-    (e) =>
-      !mechanisms?.length ||
-      !e.currentRevision.question ||
-      mechanisms.includes(e.currentRevision.question.mechanism),
-  );
-}
 export async function inspectEvidenceRelevance(
   context: FlowContextClient,
   inventory: z.infer<typeof evidenceInventorySchema>,

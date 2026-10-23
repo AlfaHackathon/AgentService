@@ -11,7 +11,6 @@ import {
 } from '@flue/runtime';
 import * as v from 'valibot';
 import { useProjectModel } from '../config/model.ts';
-import { validateApplicability } from '../news-analysis/application/applicability.ts';
 import { validateSegmentPlanRefs } from '../news-analysis/application/segment-policy.ts';
 import { newsPlanSchema, segmentPlanSchema } from '../news-analysis/contracts/flow.ts';
 import type { SignalInventory } from '../news-analysis/contracts/signals.ts';
@@ -34,6 +33,7 @@ import {
   signalExtractionSchema,
   signalReviewSchema,
 } from '../news-analysis/reasoning/source-signals.ts';
+import { InsightClient } from '../news-analysis/retrieval/insight-client.ts';
 import { sourceKey } from '../news-analysis/retrieval/source-catalog.ts';
 import type { SourceUnit } from '../news-analysis/retrieval/source-units.ts';
 import type { ToolScope } from '../news-analysis/retrieval/tool-evidence.ts';
@@ -65,7 +65,7 @@ type Task = {
 function useResultTool(
   name: string,
   schema: v.GenericSchema<Record<string, unknown>>,
-  validate?: (data: Record<string, unknown>) => void,
+  validate?: (data: Record<string, unknown>) => void | Promise<void>,
   normalize?: (data: Record<string, unknown>) => Record<string, unknown>,
   maxSubmissions?: number,
 ) {
@@ -83,7 +83,7 @@ function useResultTool(
     name,
     description: 'Submit the final structured result for this phase and end the turn.',
     input: schema,
-    run: ({ data }) => {
+    run: async ({ data }) => {
       if (maxSubmissions) {
         attempts.count++;
         saveAttempts(attempts);
@@ -91,7 +91,7 @@ function useResultTool(
       let result: Record<string, unknown>;
       try {
         result = normalize ? normalize(data) : data;
-        validate?.(result);
+        await validate?.(result);
       } catch (error) {
         if (!maxSubmissions || attempts.count < maxSubmissions) throw error;
         attempts.failure = `Result validation budget exhausted after ${maxSubmissions} submissions`;
@@ -147,8 +147,9 @@ export function CompanyConsequencesAgent() {
     task.serviceTools ? evidence.sources.map((_, i) => `s${i}`) : task.sourceHandles,
     task.questionHandles,
   );
-  useResultTool('submit_news_analysis', schema, (data) => {
-    for (const draft of v.parse(schema, data).drafts) {
+  useResultTool('submit_news_analysis', schema, async (data) => {
+    const drafts = v.parse(schema, data).drafts;
+    for (const draft of drafts) {
       for (const condition of draft.assessment.conditions)
         if (
           condition.sourceHandles.some((handle) => !draft.sourceHandles.includes(handle)) ||
@@ -169,30 +170,49 @@ export function CompanyConsequencesAgent() {
         const app = draft.assessment.applicability;
         if (app?.sourceHandles.some((h) => !draft.sourceHandles.includes(h)))
           throw new Error('Applicability evidence must also be cited in draft.sourceHandles.');
-        const ref = (handle: string) => {
-          const source = evidence.sources[Number(handle.slice(1))];
-          if (!source) throw new Error('Unknown applicability source');
-          return {
-            materialId: source.materialId,
-            versionId: source.versionId,
-            contentHash: source.contentHash,
-          };
-        };
-        validateApplicability(
-          {
-            unknowns: draft.assessment.unknowns,
-            conditions: draft.assessment.conditions.map(({ sourceHandles, ...c }) => ({
-              ...c,
-              sourceRefs: sourceHandles.map(ref),
-            })),
-            ...(app ? { applicability: { ...app, sourceRefs: app.sourceHandles.map(ref) } } : {}),
-          },
-          draft.impact.evidenceStatus,
-          !!draft.calculation,
-          evidence.sources,
-          task.serviceTools.request.companyId,
-        );
       }
+    }
+    if (drafts.length && task.serviceTools?.kind === 'company' && process.env.INSIGHT_SERVICE_URL) {
+      const sourceRef = (handle: string) => {
+        const source = evidence.sources[Number(handle.slice(1))];
+        if (!source) throw new Error('Unknown source handle');
+        return {
+          materialId: source.materialId,
+          versionId: source.versionId,
+          contentHash: source.contentHash,
+        };
+      };
+      const client = new InsightClient(
+        process.env.INSIGHT_SERVICE_URL,
+        process.env.INTERNAL_SECRET ?? '',
+      );
+      client.http.deadlineAt = task.serviceTools.deadlineAt;
+      await client.validateApplicability({
+        companyId: task.serviceTools.request.companyId,
+        asOf: task.serviceTools.request.asOf,
+        candidates: drafts.map((draft) => ({
+          assessment: {
+            unknowns: draft.assessment.unknowns,
+            conditions: draft.assessment.conditions.map(({ sourceHandles, ...condition }) => ({
+              ...condition,
+              sourceRefs: sourceHandles.map(sourceRef),
+            })),
+            ...(draft.assessment.applicability
+              ? {
+                  applicability: {
+                    status: draft.assessment.applicability.status,
+                    basis: draft.assessment.applicability.basis,
+                    explanation: draft.assessment.applicability.explanation,
+                    assumptions: draft.assessment.applicability.assumptions,
+                    sourceRefs: draft.assessment.applicability.sourceHandles.map(sourceRef),
+                  },
+                }
+              : {}),
+          },
+          evidenceStatus: draft.impact.evidenceStatus,
+          hasCalculation: !!draft.calculation,
+        })),
+      });
     }
   });
   return task.instructions;

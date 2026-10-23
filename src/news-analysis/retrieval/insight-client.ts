@@ -3,8 +3,14 @@ import {
   type AnalysisRequest,
   type AnalysisWrite,
   analysisReceiptSchema,
+  draftSchema,
   effectsResponseSchema,
+  responseCalculationSchema,
 } from '../contracts/analysis.ts';
+import { depthDecisionSchema, type evidenceInventorySchema } from '../contracts/depth.ts';
+import { NewsAnalysisError } from '../contracts/errors.ts';
+import type { FlowRequest, NewsPlan } from '../contracts/flow.ts';
+import type { Relevance } from '../contracts/relevance.ts';
 import { reactionPageSchema, type SourceChange } from '../contracts/source-changes.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
 
@@ -33,6 +39,83 @@ export class InsightClient {
       true,
     );
     return payload === null ? null : parseResponse(analysisReceiptSchema, payload);
+  }
+  async canonicalCompany(input: AnalysisRequest) {
+    try {
+      return parseResponse(
+        analysisReceiptSchema,
+        await this.http.request('/internal/analyses/canonical-company', input),
+      );
+    } catch (error) {
+      if (error instanceof NewsAnalysisError && error.status === 422)
+        throw new NewsAnalysisError(422, 'NO_CANONICAL_STATE', error.message);
+      throw error;
+    }
+  }
+  async applicability(input: AnalysisRequest) {
+    try {
+      return parseResponse(
+        analysisReceiptSchema,
+        await this.http.request('/internal/analyses/applicability', input),
+      );
+    } catch (error) {
+      if (error instanceof NewsAnalysisError && error.status === 409)
+        throw new NewsAnalysisError(409, 'DEPTH_ESCALATION_REQUIRED', error.message);
+      throw error;
+    }
+  }
+  async prepare(
+    request: AnalysisRequest,
+    drafts: import('../contracts/analysis.ts').EffectDraft[],
+    expectedStateVersion?: number,
+  ): Promise<AnalysisWrite['drafts']> {
+    const preparedDraft = draftSchema.extend({
+      expectedPreviousRevisionId: z.string().nullable(),
+      calculation: responseCalculationSchema
+        .optional()
+        .nullable()
+        .transform((value) => value ?? undefined),
+      impact: draftSchema.shape.impact.nullable().transform((value) => value ?? undefined),
+    });
+    return parseResponse(
+      z.object({ drafts: z.array(preparedDraft) }),
+      await this.http.request('/internal/analyses/prepare', {
+        request,
+        drafts,
+        expectedStateVersion,
+      }),
+    ).drafts;
+  }
+  async depth(input: {
+    companyId: string;
+    request: FlowRequest;
+    plan: NewsPlan;
+    inventory: z.infer<typeof evidenceInventorySchema>;
+    hasProfile: boolean;
+    newsCorrection: boolean;
+    relevance?: Relevance;
+  }) {
+    return parseResponse(
+      depthDecisionSchema,
+      await this.http.request('/internal/analyses/depth', {
+        ...input,
+        request: { ...input.request, companyId: input.companyId },
+      }),
+    );
+  }
+  async validateApplicability(input: {
+    companyId: string;
+    asOf: string;
+    candidates: {
+      assessment: import('../contracts/analysis.ts').EffectDraft['assessment'];
+      evidenceStatus: string;
+      hasCalculation: boolean;
+    }[];
+  }) {
+    return parseResponse(
+      z.object({ valid: z.literal(true) }),
+      await this.http.request('/internal/analyses/validate-applicability', input),
+    );
   }
 
   async getEffects(input: AnalysisRequest) {

@@ -22,7 +22,6 @@ import {
   type ReasoningInput,
 } from '../src/news-analysis/contracts/analysis.ts';
 import type { NewsPlan } from '../src/news-analysis/contracts/flow.ts';
-import { questionKey } from '../src/news-analysis/contracts/questions.ts';
 import { runNewsAgent } from '../src/news-analysis/reasoning/agent-runner.ts';
 import { createNativeNewsReasoner } from '../src/news-analysis/reasoning/company-reasoner.ts';
 import { createFlowReasoner } from '../src/news-analysis/reasoning/flow-reasoner.ts';
@@ -490,7 +489,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(await reasoner.analyze(input)).toMatchObject([
       {
         literalObjectRef: 'SYNTHETIC-LOT',
-        effectKey: expect.stringMatching(/^question-[a-f0-9]{40}$/),
+        effectKey: 'draft-0',
         sourceRefs: draft.sourceRefs,
         calculation: draft.calculation,
       },
@@ -561,7 +560,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       effects: [
         {
           effectId: 'canonical-id-must-not-enter-model',
-          effectKey: questionKey('SYNTHETIC-LOT', question),
+          effectKey: 'draft-0',
           companyId,
           newsMaterialId: 'independent-news',
           literalObjectRef: 'SYNTHETIC-LOT',
@@ -620,7 +619,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       previousEffects: previous,
     });
     expect(result[0]?.question).toEqual(question);
-    expect(result[0]?.effectKey).toBe(questionKey('SYNTHETIC-LOT', question));
+    expect(result[0]?.effectKey).toBe('draft-0');
     expect(result[0]?.sourceRefs.some((s) => s.versionId === 'updated')).toBe(true);
     expect(JSON.stringify(requests)).not.toContain('history-revision-must-not-enter-model');
     expect(JSON.stringify(requests)).not.toContain('canonical-id-must-not-enter-model');
@@ -710,7 +709,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     const { reasoner } = await adapter({ drafts: [amount, amount] });
     const result = await reasoner.analyze(input);
     expect(result).toHaveLength(2);
-    expect(result[0]?.effectKey).toBe(result[1]?.effectKey);
+    expect(result.map((draft) => draft.effectKey)).toEqual(['draft-0', 'draft-1']);
   });
 
   it('lets the model repair condition citations before accepting the company result', async () => {
@@ -772,6 +771,23 @@ describe('Flue news agents with the project provider over HTTP', () => {
   });
 
   it('lets the model repair a CSV-only conditional claim to unknown before terminating', async () => {
+    let validations = 0;
+    const insights = await createHttpService(async (request) => {
+      expect(new URL(request.url).pathname).toBe('/internal/analyses/validate-applicability');
+      expect(request.headers.get('X-Internal-Secret')).toBe('test-internal-secret');
+      const input = await request.json();
+      expect(input.candidates).toHaveLength(1);
+      validations++;
+      return validations === 1
+        ? Response.json(
+            { errorMessage: 'CSV profile is insufficient; preserve unknown' },
+            { status: 422 },
+          )
+        : Response.json({ valid: true });
+    });
+    servers.push(insights);
+    vi.stubEnv('INSIGHT_SERVICE_URL', insights.url);
+
     vi.stubEnv('CONTEXT_SERVICE_URL', 'http://unused-context.test');
     vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
     const profile = {
@@ -841,6 +857,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(saved[0]?.impact?.evidenceStatus).toBe('unknown');
     expect(result.requests).toHaveLength(2);
     expect(JSON.stringify(result.requests[1])).toContain('CSV');
+    expect(validations).toBe(2);
   });
 
   it('packs whole optional originals against full review overhead and preserves cited evidence', async () => {

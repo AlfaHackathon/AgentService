@@ -1,13 +1,13 @@
 # Границы новостного анализа
 
 `src/news-analysis` остаётся feature-модулем Node 24 / TypeScript / Flue. HTTP API,
-Kafka producer contract и протоколы ContextService / InsightService сохраняются.
+Kafka producer contract сохранён. Доменные операции вызывают API CompanyService / ContextService / InsightService.
 Новая структура отражает направление зависимостей и разные причины изменения кода.
 
 | Каталог | Владелец обязанности | Основные точки входа |
 | --- | --- | --- |
-| `contracts` | Wire schemas, сохранённые checkpoint/receipt, business-question identity, timestamps, ошибки | `analysis.ts`, `flow.ts`, `news-event.ts`, `questions.ts` |
-| `application` | Use cases и проверяемые правила анализа; не загружает Flue или сетевые клиенты во время исполнения | `company-analysis.ts`, `news-flow.ts` |
+| `contracts` | Wire schemas, сохранённые checkpoint/receipt, форма business-question, timestamps, ошибки | `analysis.ts`, `flow.ts`, `news-event.ts`, `questions.ts` |
+| `application` | Оркестрация Flue и заданий; не загружает Flue или сетевые клиенты во время исполнения | `company-analysis.ts`, `news-flow.ts` |
 | `retrieval` | Типизированные upstream API, source windows/catalog, допуск evidence в бюджеты | `context-client.ts`, `insight-client.ts`, `flow-clients.ts`, `tool-evidence.ts` |
 | `reasoning` | Flue invocation/retry, prompts, преобразование model output, read-only tools | `company-reasoner.ts`, `flow-reasoner.ts`, `agent-runner.ts`, `service-tools.ts` |
 | `transport/http` | Hono ingress и общий HTTP primitive: authentication, deadline, replay-safe retry, error mapping | `routes.ts`, `service-client.ts`, `settings.ts` |
@@ -25,17 +25,18 @@ reasoner через `NewsReasoner` / `FlowReasoner`, без импорта ко�
 - `news-admission.ts` принимает публикацию, вычисляет прежние immutable IDs,
   разрешает конкурентный 409 через чтение победившей версии и возвращает параметры
   задания с оригинальным `knownAt`. Он не запускает worker и не знает Kafka.
-- `company-selection.ts` объединяет retrieval ranks, группы, явные роли и страницы
-  прежних получателей с сохранением company budget.
-- `company-run.ts` выбирает глубину, регистрирует watch до canonical receipt,
+- `company-selection.ts` вызывает CompanyService: ранжирование, раскрытие групп,
+  явные роли и сегменты принадлежат CompanyService. Agent сохраняет результат выбора в checkpoint.
+- `company-run.ts` запрашивает решение глубины у InsightService, регистрирует watch до canonical receipt,
   исполняет компанию и догоняет source changes. Enqueue предшествует продвижению
   watch cursor; ограниченная пачка catch-up остаётся незавершённой до следующего запуска.
-- `job-projection.ts` читает актуальные canonical heads, отмечает stale effects,
-  строит coverage и ролевые представления. `role-projection.ts` отдельно проверяет
-  read grants, время, хеши и все источники до вызова ролевого reasoner.
+- `job-projection.ts` запрашивает canonical facts и группы у InsightService и собирает
+  checkpoint результата. `role-projection.ts` передаёт ролевому reasoner только
+  готовую разрешённую проекцию InsightService. Read grants проверяет backend.
 - `draft-validation.ts` проверяет привязку drafts к точным версиям источников,
-  triggering news, applicability и conditions до preview/commit.
-- `segment-policy.ts` владеет чистыми правилами membership, source/segment coverage
+  triggering news и привязку handles к источникам до preview/commit. Применимость,
+  predecessor IDs, глубину и канонические проекции проверяет InsightService.
+- `segment-policy.ts` проверяет полноту ответа модели, source/segment coverage
   и обновления сохранённых batches. `segment-analysis.ts` выполняет retrieval и
   пополняет durable inventories, вызывая переданный reasoner. `signal-cache.ts`
   проверяет пригодность законченного inventory без зависимости от reasoning.
@@ -64,8 +65,7 @@ Transport видит application только через type imports. Compositi
 `test:live` — отдельный сценарий с реальной моделью; рефакторинг не запускает его
 и не возобновляет предыдущий Kafka/LLM worker.
 
-Существующие regression suites проверяют wire contracts, identity, unknown/conditional,
-source binding, глубину, segment batching, бюджеты и retry. Дополнительные application
+Проверки AgentService покрывают wire contracts, source binding, segment batching, бюджеты, retry и вызовы доменных API. Правила компаний и расчётов проверяются в сервисах-владельцах. Дополнительные application
 seam tests проверяют конкурентное admission и порядок watch → receipt → enqueue → cursor,
 включая восстановление после неуспешного enqueue. Отрицательные boundary fixtures
 проверяют, что нарушение направления зависимостей действительно обнаруживается.

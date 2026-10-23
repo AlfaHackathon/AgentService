@@ -21,43 +21,23 @@ it.each([400, 409, 422, 503])('reads the package error envelope for HTTP %s', as
   expect(fetcher).toHaveBeenCalledOnce();
 });
 
-it.each([
-  { nextVersion: 4, message: 'Different wording', expectedCode: 'DEPTH_ESCALATION_REQUIRED' },
-  {
-    nextVersion: 3,
-    message: 'The immutable company snapshot changed before atomic commit.',
-    expectedCode: 'UPSTREAM_ERROR',
-  },
-])(
-  'checks state version after a shallow write conflict: $nextVersion',
-  async ({ nextVersion, message, expectedCode }) => {
-    let stateReads = 0;
-    const writes: unknown[] = [];
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
-      const path = new URL(String(url)).pathname;
-      if (path === '/internal/effects') {
-        return Response.json({ effects: [], stateVersion: ++stateReads === 1 ? 3 : nextVersion });
-      }
-      if (init?.method === 'POST') {
-        writes.push(JSON.parse(String(init.body)));
-        return Response.json({ errorMessage: message }, { status: 409 });
-      }
-      return Response.json({ errorMessage: 'Missing receipt' }, { status: 404 });
-    });
-    const analyzer = new NewsAnalyzer({
-      context: new ContextClient('http://context.test', 'test-secret'),
-      insights: new InsightClient('http://insight.test', 'test-secret', fetcher),
-      reasoner: { analyze: vi.fn(async () => []) },
-    });
-    await expect(
-      analyzer.recordApplicability({
-        companyId: '11111111-1111-4111-8111-111111111111',
-        newsMaterialId: 'news',
-        newsVersionId: 'v1',
-        asOf: '2026-10-23T10:00:00Z',
-      }),
-    ).rejects.toMatchObject({ status: 409, code: expectedCode });
-    expect(stateReads).toBe(2);
-    expect(writes).toEqual([expect.objectContaining({ expectedStateVersion: 3, drafts: [] })]);
-  },
-);
+it('delegates shallow applicability conflicts to Insight without parsing error prose', async () => {
+  const fetcher = vi.fn<typeof fetch>(async () =>
+    Response.json({ errorMessage: 'Canonical state changed' }, { status: 409 }),
+  );
+  const analyzer = new NewsAnalyzer({
+    context: new ContextClient('http://context.test', 'test-secret'),
+    insights: new InsightClient('http://insight.test', 'test-secret', fetcher),
+    reasoner: { analyze: vi.fn(async () => []) },
+  });
+  await expect(
+    analyzer.recordApplicability({
+      companyId: '11111111-1111-4111-8111-111111111111',
+      newsMaterialId: 'news',
+      newsVersionId: 'v1',
+      asOf: '2026-10-23T10:00:00Z',
+    }),
+  ).rejects.toMatchObject({ status: 409, code: 'DEPTH_ESCALATION_REQUIRED' });
+  expect(fetcher).toHaveBeenCalledOnce();
+  expect(fetcher.mock.calls[0]?.[0]).toBe('http://insight.test/internal/analyses/applicability');
+});

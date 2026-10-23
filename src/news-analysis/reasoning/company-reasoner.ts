@@ -7,7 +7,7 @@ import {
   reasoningOutputSchema,
 } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
-import { normalizeQuestion, questionKey, questionSchema } from '../contracts/questions.ts';
+import { questionSchema } from '../contracts/questions.ts';
 import { type ObjectBinding, objectCatalog } from '../retrieval/source-catalog.ts';
 import { runNewsAgent } from './agent-runner.ts';
 import { companyResultSchema } from './agent-schemas.ts';
@@ -200,14 +200,17 @@ ${final ? 'Это заключительная проверка: перечит�
     try {
       const parsed = reasoningOutputSchema.parse({
         drafts: result.output.drafts.map(
-          ({
-            sourceHandles,
-            calculation,
-            objectHandle,
-            assessment,
-            question: proposedQuestion,
-            ...draft
-          }) => {
+          (
+            {
+              sourceHandles,
+              calculation,
+              objectHandle,
+              assessment,
+              question: proposedQuestion,
+              ...draft
+            },
+            draftIndex,
+          ) => {
             const object = objects.find((o) => o.handle === objectHandle);
             if (
               !object ||
@@ -229,9 +232,9 @@ ${final ? 'Это заключительная проверка: перечит�
             if (!question) throw new Error('Missing question identity');
             return {
               ...draft,
-              question: normalizeQuestion(question),
+              question,
               literalObjectRef: object.literal,
-              effectKey: questionKey(object.literal, question),
+              effectKey: `draft-${draftIndex}`,
               assessment: {
                 ...assessment,
                 ...(assessment.applicability

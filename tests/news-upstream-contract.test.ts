@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import { CompanyClient } from '../src/news-analysis/retrieval/company-client.ts';
 import { FlowContextClient, FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
 import { createHttpService } from './helpers/http-service.ts';
 
 const time = '2026-10-23T10:00:00Z';
 const cursor = { version: 0, sequence: 0, afterQuestion: null };
-type Clients = { context: FlowContextClient; jobs: FlowJobClient; insights: InsightClient };
+type Clients = {
+  companies: CompanyClient;
+  context: FlowContextClient;
+  jobs: FlowJobClient;
+  insights: InsightClient;
+};
 const requests: { name: string; invoke: (clients: Clients) => Promise<unknown> }[] = [
-  { name: 'companies', invoke: ({ context }) => context.companies(time) },
-  { name: 'groups', invoke: ({ context }) => context.groups(time) },
-  { name: 'group expansion', invoke: ({ context }) => context.expand('group', time) },
-  { name: 'roles', invoke: ({ context }) => context.roles(time) },
+  { name: 'companies', invoke: ({ companies }) => companies.companies(time) },
+  { name: 'groups', invoke: ({ companies }) => companies.groups(time) },
+  { name: 'roles', invoke: ({ companies }) => companies.roleScope(time, [], []) },
   { name: 'search', invoke: ({ context }) => context.search('query', time) },
   { name: 'source changes', invoke: ({ context }) => context.changes(0) },
   { name: 'read cursor', invoke: ({ jobs }) => jobs.sourceCursor() },
@@ -40,6 +45,7 @@ describe('upstream response errors', () => {
       try {
         await expect(
           invoke({
+            companies: new CompanyClient(service.url, 'test-secret'),
             context: new FlowContextClient(service.url, 'test-secret'),
             jobs: new FlowJobClient(service.url, 'test-secret'),
             insights: new InsightClient(service.url, 'test-secret'),

@@ -100,6 +100,17 @@ it('persists the watch before the canonical receipt and retries catch-up without
     reasoner: { analyze: async () => [] },
   });
   vi.spyOn(analyzer, 'currentEffects').mockResolvedValue([]);
+  vi.spyOn(analyzer.dependencies.insights, 'depth').mockResolvedValue({
+    policyVersion: 'evidence-depth-v1',
+    level: 'general',
+    reason: 'no_own_evidence',
+    ownOriginalCount: 0,
+    inventoryCompleteForLoadedScope: true,
+    sourceRefs: [],
+    generalInsightIndexes: [],
+    applicability: 'unknown',
+    missingFacts: [],
+  });
   vi.spyOn(context, 'evidence').mockResolvedValue({
     companyId,
     asOf: time,

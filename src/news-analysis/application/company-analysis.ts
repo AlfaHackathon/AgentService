@@ -5,13 +5,11 @@ import {
   reasoningOutputSchema,
 } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
-import { normalizeQuestion, questionKey } from '../contracts/questions.ts';
 import type { SourceChange } from '../contracts/source-changes.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 import type { InsightClient } from '../retrieval/insight-client.ts';
 import { sourceKey, validateReferences } from './draft-validation.ts';
-import { relevantEffects } from './evidence-relevance.ts';
 
 type Dependencies = {
   context: ContextClient;
@@ -40,94 +38,20 @@ export class NewsAnalyzer {
     return this.dependencies.insights.react(change, afterQuestion);
   }
   async readCompany(input: AnalysisRequest): Promise<AnalysisResult> {
-    const effects = await this.currentEffects(input);
-    const latest = effects
-      .flatMap((e) => {
-        const revision = [...e.history].reverse().find((r) => !instantAfter(r.asOf, input.asOf));
-        return revision ? [{ ...e, currentRevision: revision }] : [];
-      })
-      .sort((a, b) => b.currentRevision.createdAt.localeCompare(a.currentRevision.createdAt))[0];
-    if (!latest)
-      throw new NewsAnalysisError(
-        422,
-        'NO_CANONICAL_STATE',
-        'No source-supported company state exists for this projection',
-      );
-    const receipt = await this.dependencies.insights.findAnalysis({
-      ...input,
-      newsMaterialId: latest.currentRevision.newsMaterialId ?? latest.newsMaterialId,
-      newsVersionId: latest.currentRevision.newsVersionId,
-      trigger: latest.currentRevision.trigger ?? undefined,
-    });
-    if (!receipt)
-      throw new NewsAnalysisError(
-        502,
-        'MISSING_CANONICAL_RECEIPT',
-        'The canonical head has no processing receipt',
-      );
+    const receipt = await this.dependencies.insights.canonicalCompany(input);
     return {
       ...receipt,
       reasoningInvoked: false,
       contextComplete: receipt.contextComplete ?? false,
     };
   }
-
   async recordApplicability(input: AnalysisRequest): Promise<AnalysisResult> {
-    const { insights } = this.dependencies;
-    const prior = await insights.findAnalysis(input);
-    if (prior) {
-      if (
-        prior.companyId.toLowerCase() !== input.companyId.toLowerCase() ||
-        prior.newsMaterialId !== input.newsMaterialId ||
-        prior.newsVersionId !== input.newsVersionId ||
-        !sameInstant(prior.asOf, input.asOf) ||
-        (prior.bankProfileId ?? null) !== (input.bankProfileId ?? null)
-      )
-        throw new NewsAnalysisError(
-          409,
-          'ANALYSIS_CONFLICT',
-          'The existing receipt has a different scope',
-        );
-      if (prior.effects.length)
-        throw new NewsAnalysisError(
-          409,
-          'DEPTH_ESCALATION_REQUIRED',
-          'Existing canonical effects require deep assessment',
-        );
-      return { ...prior, duplicate: true, reasoningInvoked: false, contextComplete: false };
-    }
-    const before = await insights.getState(input);
-    if (relevantEffects(before.effects, input.mechanisms).length)
-      throw new NewsAnalysisError(
-        409,
-        'DEPTH_ESCALATION_REQUIRED',
-        'Canonical state changed since the depth decision',
-      );
-    try {
-      const receipt = await insights.saveAnalysis({
-        ...input,
-        drafts: [],
-        expectedStateVersion: before.stateVersion,
-        contextComplete: false,
-      });
-      return { ...receipt, reasoningInvoked: false, contextComplete: false };
-    } catch (error) {
-      if (
-        error instanceof NewsAnalysisError &&
-        error.status === 409 &&
-        before.stateVersion !== undefined
-      ) {
-        const after = await insights.getState(input);
-        if (after.stateVersion !== undefined && after.stateVersion !== before.stateVersion) {
-          throw new NewsAnalysisError(
-            409,
-            'DEPTH_ESCALATION_REQUIRED',
-            'Canonical state changed before atomic commit',
-          );
-        }
-      }
-      throw error;
-    }
+    const receipt = await this.dependencies.insights.applicability(input);
+    return {
+      ...receipt,
+      reasoningInvoked: false,
+      contextComplete: receipt.contextComplete ?? false,
+    };
   }
 
   analyze(input: AnalysisRequest): Promise<AnalysisResult> {
@@ -240,15 +164,7 @@ export class NewsAnalyzer {
         'INVALID_REASONING_RESULT',
         'Reasoner returned an invalid draft contract',
       );
-    let first = firstResult.data.drafts.map((d) =>
-      d.question
-        ? {
-            ...d,
-            question: normalizeQuestion(d.question),
-            effectKey: questionKey(d.literalObjectRef, d.question),
-          }
-        : d,
-    );
+    let first = firstResult.data.drafts;
     const refs = (bundle: typeof context) =>
       [bundle.news, ...bundle.materials].map((s) => ({
         materialId: s.materialId,
@@ -318,17 +234,9 @@ export class NewsAnalyzer {
       }
       context = merged;
       reasoningInput.context = context;
-      first = reasoningOutputSchema
-        .parse({ drafts: await reasoner.analyze(reasoningInput) })
-        .drafts.map((d) =>
-          d.question
-            ? {
-                ...d,
-                question: normalizeQuestion(d.question),
-                effectKey: questionKey(d.literalObjectRef, d.question),
-              }
-            : d,
-        );
+      first = reasoningOutputSchema.parse({
+        drafts: await reasoner.analyze(reasoningInput),
+      }).drafts;
       if (round === 2) stop('round_budget');
     }
     // Preliminary candidates are not writes. Let the final review consolidate
@@ -345,68 +253,13 @@ export class NewsAnalyzer {
         'INVALID_REASONING_RESULT',
         'Reasoner returned an invalid draft contract',
       );
-    const drafts = proposed.data.drafts.map((d) =>
-      d.question
-        ? {
-            ...d,
-            question: normalizeQuestion(d.question),
-            effectKey: questionKey(d.literalObjectRef, d.question),
-          }
-        : d,
-    );
-    if (
-      input.mechanisms?.length &&
-      drafts.some((d) => d.question && !input.mechanisms?.includes(d.question.mechanism))
-    )
-      throw new NewsAnalysisError(
-        422,
-        'QUESTION_OUTSIDE_SCOPE',
-        'Draft mechanism is outside the requested scope',
-      );
-    if (
-      input.trigger &&
-      drafts.some(
-        (d) =>
-          !d.question ||
-          !d.sourceRefs.some(
-            (s) =>
-              s.materialId === input.trigger?.materialId && s.versionId === input.trigger.versionId,
-          ),
-      )
-    )
-      throw new NewsAnalysisError(
-        422,
-        'TRIGGER_CITATION',
-        'Reassessment must cite the triggering source version',
-      );
+    const drafts = await insights.prepare(input, proposed.data.drafts, before.stateVersion);
     validateReferences(drafts, context, input.companyId);
-    const prior = new Map<string, (typeof previousEffects)[number]>();
-    for (const effect of previousEffects) {
-      const q = effect.currentRevision.question;
-      const key = q ? questionKey(effect.literalObjectRef, q) : effect.effectKey;
-      if (prior.has(key))
-        throw new NewsAnalysisError(
-          409,
-          'AMBIGUOUS_LEGACY_QUESTION',
-          'Multiple stored histories require explicit reconciliation',
-        );
-      prior.set(key, effect);
-    }
-    const writes = drafts.map((draft) => {
-      const old = prior.get(draft.effectKey);
-      if (old && old.literalObjectRef !== draft.literalObjectRef)
-        throw new NewsAnalysisError(
-          422,
-          'EFFECT_IDENTITY_CHANGED',
-          'An existing effect must retain its literal object reference',
-        );
-      return { ...draft, expectedPreviousRevisionId: old?.currentRevision.revisionId ?? null };
-    });
     // InsightService commits every revision and completion receipt in one transaction,
     // including empty batches. Omitted previous effects are never deleted or zeroed.
     const saved = await insights.saveAnalysis({
       ...input,
-      drafts: writes,
+      drafts,
       contextComplete: context.coverage.complete,
       retrievalTrace:
         reasoner.retrievalMode === 'agent_tools'

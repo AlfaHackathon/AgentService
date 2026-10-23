@@ -3,14 +3,19 @@
 Основание агентного сервиса AlfaHackathon: TypeScript, Node 24, Flue 2.3, Hono и PostgreSQL.
 Пользователь общается с ClientAssistantAgent; CompanyResearchAgent, InsightAgent и ScenarioAgent
 зарегистрированы для внутреннего запуска. Новостной pipeline использует ещё три Flue-агента:
-NewsPlannerAgent, CompanyConsequencesAgent и RoleProjectionAgent, настоящий ContextService и InsightService.
+NewsPlannerAgent, CompanyConsequencesAgent и RoleProjectionAgent и вызывает API CompanyService, ContextService и InsightService.
+
+CompanyService владеет профилями компаний, группами, людьми, явными ролями, выбором компаний и сегментами.
+ContextService владеет версиями материалов и поиском. InsightService владеет вопросами,
+расчётами, решениями глубины, сохранённым состоянием, приоритетами и ролевыми проекциями.
+AgentService выполняет Flue-рассуждение, вызовы инструментов и продолжение заданий.
 
 ## Новостное состояние и продолжение
 
 Native result содержит `question={mechanism,frame,unit,targetPeriod,baselinePeriod,basis}` и
 `assessment={conditions,unknowns}`. `frame` отделяет `event_only`, `absolute`, `budget_delta`;
 периоды имеют ISO-формат/`unknown`, бюджетный baseline можно обозначить `budget:2026-11`.
-Код связывает буквальный объект, источники и устойчивый key. Для существующего вопроса модель
+Агент связывает handles с буквальным объектом и источниками; InsightService нормализует вопрос и назначает устойчивый key. Для существующего вопроса модель
 выбирает handle `q0`; историю, predecessor IDs и операции хранилища она не задаёт.
 Разные механизмы и базы сравнения сохраняются отдельно.
 
@@ -21,17 +26,17 @@ queries/полученные версии/stopReason сохраняются в r
 
 HTTP-клиенты читают пакетный ответ ошибки ContextService/InsightService `{errorMessage}`
 и прежний `{code,message}` для middleware. При конфликте HTTP 409 во время записи
-пустого applicability receipt повторно проверяется `stateVersion`: переход к глубокому
-анализу происходит только при изменении состояния, без разбора текста ошибки.
+applicability receipt InsightService решает, требуется ли глубокий анализ.
+Подготовка predecessor IDs и проверка атомарной записи выполняются в InsightService.
 
 `companyBudget` ограничивает одну lease-партию. Job с оставшимися адресатами получает `partial`
 и подхватывается worker после перезапуска; сохранённые plan/receipts переиспользуются.
 Предыдущие адресаты читаются из canonical question index страницами по 256.
-`SourceChangePump` читает транзакционный журнал ContextService, ставит durable jobs и затем
-продвигает CAS cursor. Новые версии оснований инициируют пересмотр с `trigger`; изменения
+`SourceChangePump` читает журналы материалов ContextService и знаний CompanyService,
+ставит durable jobs и затем продвигает отдельный CAS cursor каждого журнала в InsightService. Новые версии оснований инициируют пересмотр с `trigger`; изменения
 группы/роли — `projectionOnly` refresh общего состояния без нового company reasoning.
 
-Группы агрегируют сопоставимые mechanism/frame/baseline/basis/unit/period. Устаревшие основания
+InsightService агрегирует группы по сопоставимым mechanism/frame/baseline/basis/unit/period. Устаревшие основания
 исключаются из известных subtotal и ролевых действий; gaps блокируют полный итог.
 Ролевая модель получает разрешённые факты и канонически отображённые Decimal-результаты;
 исходное `modelExplanation` остаётся в audit receipt. CSV-связь человека не создаёт роль/grant.
@@ -150,6 +155,7 @@ CLI загружает .env и db.ts. Не запускайте CLI и серв�
 
 Этот маршрут требует **отдельный** `X-Internal-Secret`. Пользовательский Bearer или
 `X-User-Id` его не заменяет. Нужны непустой `INTERNAL_SECRET`,
+`COMPANY_SERVICE_URL=http://.../company-service`,
 `CONTEXT_SERVICE_URL=http://.../context-service` и
 `INSIGHT_SERVICE_URL=http://.../insight-service`; клиенты добавляют `/internal/...`.
 Отсутствующая/невалидная новая конфигурация отключает только эту интеграцию с 503.
@@ -226,7 +232,7 @@ production app. Реальные суммы/договоры/полномочи�
 ### Новостной worker
 
 `npm run news:worker` запускает тот же news flow на `127.0.0.1:5184`, с PostgreSQL для Flue.
-Нужны `INTERNAL_SECRET`, `CONTEXT_SERVICE_URL` (с `/context-service`), `INSIGHT_SERVICE_URL`
+Нужны `INTERNAL_SECRET`, `COMPANY_SERVICE_URL` (с `/company-service`), `CONTEXT_SERVICE_URL` (с `/context-service`), `INSIGHT_SERVICE_URL`
 (с `/insight-service`) и существующие `LLM_*`. ContextService использует Qdrant и локальный
 embedding/reranker sidecar. InsightService разрешает источники через ContextService и хранит
 канонические effects, immutable receipts и lease/checkpoint новостных jobs.
@@ -332,7 +338,7 @@ endpoint. Проверяются SQL, контекст gateway, владение
 
 Consumer принимает текущий `NewsEventMessage` WebNewsParserService из `news-parser.news`: `Source`, `ExternalId`, `Title`, `Text`, `PublishedAt` (также поддержан camelCase). `Text` может быть пустым: upstream заполняет его из Subtitle. Материал сохраняется как `event_payload/lead`, без выдуманных URL и версии издателя.
 
-Для включения задайте `NEWS_KAFKA_ENABLED=true`, `KAFKA_BROKERS=host:port` (несколько через запятую), существующие `INTERNAL_SECRET`, `CONTEXT_SERVICE_URL`, `INSIGHT_SERVICE_URL` и конфигурацию модели. Все экземпляры используют один стабильный `NEWS_KAFKA_GROUP_ID` (default `agent-service-news-v1`), отдельный от других потребителей. `NEWS_KAFKA_TOPIC` default `news-parser.news`; `NEWS_KAFKA_FROM_BEGINNING=true` читает историю только при отсутствии сохранённого offset группы. Broker address должен быть доступен из контейнера/процесса AgentService, включая адреса из advertised listeners. TLS/SASL переменные перечислены в [.env.example](.env.example).
+Для включения задайте `NEWS_KAFKA_ENABLED=true`, `KAFKA_BROKERS=host:port` (несколько через запятую), существующие `INTERNAL_SECRET`, `COMPANY_SERVICE_URL`, `CONTEXT_SERVICE_URL`, `INSIGHT_SERVICE_URL` и конфигурацию модели. Все экземпляры используют один стабильный `NEWS_KAFKA_GROUP_ID` (default `agent-service-news-v1`), отдельный от других потребителей. `NEWS_KAFKA_TOPIC` default `news-parser.news`; `NEWS_KAFKA_FROM_BEGINNING=true` читает историю только при отсутствии сохранённого offset группы. Broker address должен быть доступен из контейнера/процесса AgentService, включая адреса из advertised listeners. TLS/SASL переменные перечислены в [.env.example](.env.example).
 
 Порядок: Kafka → точная версия материала в ContextService → долговечное news job в InsightService → ручной commit следующего offset → фоновый Flue-анализ → сохранённый инсайт. Подтверждение Kafka означает сохранённое задание; его завершение проверяется через `/internal/news-analysis/jobs/:id`. Повторная доставка использует прежнее время наблюдения и job ID. Ошибка backend/commit оставляет событие для повторной обработки. Это at-least-once доставка с идемпотентной записью.
 

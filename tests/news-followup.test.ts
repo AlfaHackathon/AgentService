@@ -4,7 +4,6 @@ import {
   analysisReceiptSchema,
   type ContextBundle,
   type EffectDraft,
-  effectsResponseSchema,
 } from '../src/news-analysis/contracts/analysis.ts';
 import { ContextClient } from '../src/news-analysis/retrieval/context-client.ts';
 import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
@@ -89,6 +88,9 @@ function question(found: boolean): EffectDraft {
 function fixture(found: boolean, complete = false) {
   const context = new ContextClient('http://context.test', 'test'),
     insights = new InsightClient('http://insights.test', 'test');
+  vi.spyOn(insights, 'prepare').mockImplementation(async (_request, drafts) =>
+    drafts.map((draft) => ({ ...draft, expectedPreviousRevisionId: null })),
+  );
   vi.spyOn(insights, 'findAnalysis').mockResolvedValue(null);
   vi.spyOn(insights, 'getState').mockResolvedValue({ effects: [], stateVersion: 0 });
   vi.spyOn(context, 'getContext').mockResolvedValue({
@@ -139,68 +141,6 @@ describe('bounded source follow-up in the service orchestrator', () => {
         drafts: [expect.objectContaining({ status: 'unknown' })],
         retrievalTrace: [expect.objectContaining({ stopReason: 'agent_tools' })],
       }),
-    );
-  });
-  it('reads the historical revision valid at asOf when the current head is newer', async () => {
-    const f = fixture(false);
-    const old = {
-      revisionId: 'old',
-      previousRevisionId: null,
-      newsMaterialId: 'old-news',
-      newsVersionId: '1',
-      asOf: '2026-10-21T10:00:00Z',
-      createdAt: '2026-10-21T10:00:00Z',
-      conclusion: 'Historical fixture',
-      status: 'unknown',
-      sourceRefs: [ref(news)],
-      impact: null,
-    };
-    const current = {
-      ...old,
-      revisionId: 'current',
-      newsVersionId: '2',
-      previousRevisionId: 'old',
-      asOf: '2026-10-23T10:00:00Z',
-      createdAt: '2026-10-23T10:00:00Z',
-    };
-    vi.spyOn(f.analyzer.dependencies.insights, 'getEffects').mockResolvedValue(
-      effectsResponseSchema.parse({
-        effects: [
-          {
-            effectId: 'question-fixture',
-            effectKey: 'fixture',
-            companyId,
-            newsMaterialId: 'old-news',
-            literalObjectRef: 'company-fixture',
-            currentRevision: current,
-            history: [old, current],
-          },
-        ],
-      }).effects,
-    );
-    vi.mocked(f.analyzer.dependencies.insights.findAnalysis).mockResolvedValue(
-      analysisReceiptSchema.parse({
-        analysisId: 'historical-receipt',
-        companyId,
-        newsMaterialId: 'old-news',
-        newsVersionId: '1',
-        asOf: old.asOf,
-        completedAt: old.createdAt,
-        duplicate: false,
-        resultSemantics: 'saved_analysis_revisions_not_latest_heads',
-        effects: [],
-      }),
-    );
-    const result = await f.analyzer.readCompany({
-      companyId,
-      newsMaterialId: 'trigger',
-      newsVersionId: '1',
-      asOf,
-    });
-    expect(result.analysisId).toBe('historical-receipt');
-    expect(f.analyze).not.toHaveBeenCalled();
-    expect(f.analyzer.dependencies.insights.findAnalysis).toHaveBeenCalledWith(
-      expect.objectContaining({ newsMaterialId: 'old-news', newsVersionId: '1' }),
     );
   });
   it('rejects foreign or future follow-up originals before any second model call', async () => {

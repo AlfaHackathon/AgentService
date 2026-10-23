@@ -4,14 +4,19 @@ import { NewsFlow } from '../src/news-analysis/application/news-flow.ts';
 import { SourceChangePump } from '../src/news-analysis/application/source-change-pump.ts';
 import { flowRequestSchema } from '../src/news-analysis/contracts/flow.ts';
 import type { SourceChange } from '../src/news-analysis/contracts/source-changes.ts';
+import { CompanyClient } from '../src/news-analysis/retrieval/company-client.ts';
 import { ContextClient } from '../src/news-analysis/retrieval/context-client.ts';
 import { FlowContextClient, FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
+import { InsightDomainClient } from '../src/news-analysis/retrieval/insight-domain-client.ts';
 
 const companyId = '11111111-1111-4111-8111-111111111111';
-function fixture(category = 'material:company') {
+function fixture(category = 'material:company', source: 'context' | 'company' = 'context') {
   const context = new FlowContextClient('http://context.test', 'test'),
     jobs = new FlowJobClient('http://insights.test', 'test');
+  const companies = new CompanyClient('http://companies.test', 'test');
+  vi.spyOn(companies, 'changes').mockResolvedValue([]);
+  const projections = new InsightDomainClient('http://insights.test', 'test');
   const analyzer = new NewsAnalyzer({
     context: new ContextClient('http://context.test', 'test'),
     insights: new InsightClient('http://insights.test', 'test'),
@@ -19,6 +24,8 @@ function fixture(category = 'material:company') {
   });
   const flow = new NewsFlow({
     context,
+    companies,
+    projections,
     jobs,
     analyzer,
     reasoner: {
@@ -35,13 +42,20 @@ function fixture(category = 'material:company') {
     knownAt: '2026-10-22T10:00:00Z',
     companyIds: [companyId],
   };
-  vi.spyOn(jobs, 'sourceCursor').mockImplementation(async () => ({ ...cursor }));
+  vi.spyOn(jobs, 'sourceCursor').mockImplementation(async (name) =>
+    name !== source ? { version: 0, sequence: 0, afterQuestion: null } : { ...cursor },
+  );
   const advance = vi.spyOn(jobs, 'advanceSourceCursor').mockImplementation(async (input) => {
     cursor = { ...input, version: cursor.version + 1 };
     return cursor;
   });
-  vi.spyOn(context, 'changes').mockImplementation(async (after) => (after < 1 ? [event] : []));
-  vi.spyOn(context, 'groups').mockResolvedValue([{ groupId: 'root' }]);
+  vi.spyOn(context, 'changes').mockImplementation(async (after) =>
+    source === 'context' && after < 1 ? [event] : [],
+  );
+  vi.mocked(companies.changes).mockImplementation(async (after) =>
+    source === 'company' && after < 1 ? [event] : [],
+  );
+  vi.spyOn(companies, 'groups').mockResolvedValue([{ groupId: 'root' }]);
   const work = {
     effectId: 'question-1',
     companyId,
@@ -68,13 +82,19 @@ function fixture(category = 'material:company') {
     error: null,
     updatedAt: event.knownAt,
   });
-  const pump = () => new SourceChangePump(context, jobs, analyzer, flow);
-  return { pump, enqueue, advance, react, context, cursor: () => cursor, work };
+  const pump = () => new SourceChangePump(context, jobs, analyzer, flow, companies);
+  return { pump, enqueue, advance, react, companies, context, cursor: () => cursor, work };
 }
 describe('durable canonical source change delivery', () => {
+  it('keeps the Company journal cursor independent of material sequence numbers', async () => {
+    const f = fixture('group', 'company');
+    await f.pump().tick();
+    expect(f.advance).toHaveBeenCalledWith(expect.objectContaining({ sequence: 1 }), 'company');
+    expect(f.enqueue).toHaveBeenCalledWith(expect.objectContaining({ projectionOnly: true }));
+  });
   it('batches more than 32 groups without blocking or truncating the source cursor', async () => {
     const f = fixture();
-    vi.mocked(f.context.groups).mockResolvedValue(
+    vi.mocked(f.companies.groups).mockResolvedValue(
       Array.from({ length: 33 }, (_, i) => ({ groupId: `group-${i}` })),
     );
     await f.pump().tick();
