@@ -1,13 +1,24 @@
 import { z } from 'zod';
 import { materialSchema, sourceRefSchema } from '../contracts/analysis.ts';
-import { evidenceInventorySchema } from '../contracts/depth.ts';
+import {
+  companyPlanSchema,
+  companyWatchSchema,
+  jobProjectionSchema,
+  sourceJobsSchema,
+} from '../contracts/execution.ts';
 import {
   type FlowCheckpoint,
   type FlowRequest,
+  flowRequestSchema,
   jobSchema,
   type NewsJob,
 } from '../contracts/flow.ts';
-import { sourceChangeSchema, sourceCursorSchema } from '../contracts/source-changes.ts';
+import type { Relevance } from '../contracts/relevance.ts';
+import {
+  type SourceChange,
+  sourceChangeSchema,
+  sourceCursorSchema,
+} from '../contracts/source-changes.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
 
 const searchSchema = z.object({
@@ -40,19 +51,24 @@ export class FlowContextClient {
       ),
     );
   }
-  async saveMaterial(value: unknown) {
+  async admitNews(event: unknown) {
+    return parseResponse(flowRequestSchema, await this.http.request('/internal/news/admit', event));
+  }
+  async news(request: FlowRequest) {
     return parseResponse(
       materialSchema,
-      await this.http.request('/internal/material-versions', value),
+      await this.http.request('/internal/news/resolve', {
+        newsMaterialId: request.newsMaterialId,
+        newsVersionId: request.newsVersionId,
+        asOf: request.asOf,
+      }),
     );
   }
-  async evidence(companyId: string, asOf: string) {
+  async publicSources(sourceRefs: z.infer<typeof sourceRefSchema>[], asOf: string) {
     return parseResponse(
-      evidenceInventorySchema,
-      await this.http.request(
-        `/internal/companies/${encodeURIComponent(companyId)}/evidence?asOf=${encodeURIComponent(asOf)}`,
-      ),
-    );
+      z.object({ materials: z.array(materialSchema) }),
+      await this.http.request('/internal/news/public-sources', { sourceRefs, asOf }),
+    ).materials;
   }
   async search(query: string, asOf: string, publicOnly = false) {
     return parseResponse(
@@ -89,6 +105,38 @@ export class FlowJobClient {
         newsVersionId: request.newsVersionId,
         asOf: request.asOf,
         parameters: request,
+      }),
+    );
+  }
+  async companyPlan(jobId: string, companyId: string, relevance?: Relevance) {
+    return parseResponse(
+      companyPlanSchema,
+      await this.http.request('/internal/execution/company-plan', { jobId, companyId, relevance }),
+    );
+  }
+  async companyWatch(jobId: string, companyId: string, afterSequence: number) {
+    return parseResponse(
+      companyWatchSchema,
+      await this.http.request('/internal/execution/company-watch', {
+        jobId,
+        companyId,
+        afterSequence,
+      }),
+    );
+  }
+  async sourceJobs(event: SourceChange, afterQuestion: string | null) {
+    return parseResponse(
+      sourceJobsSchema,
+      await this.http.request('/internal/execution/source-jobs', { event, afterQuestion }),
+    );
+  }
+  async projection(jobId: string, segmentCoverageAvailable: boolean, roleViews?: unknown[]) {
+    return parseResponse(
+      jobProjectionSchema,
+      await this.http.request('/internal/projections/job', {
+        jobId,
+        segmentCoverageAvailable,
+        roleViews,
       }),
     );
   }

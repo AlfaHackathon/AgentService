@@ -178,7 +178,7 @@ describe('current NewsEventMessage Kafka boundary', () => {
     await f.pump.stop();
   });
   it('retries malformed backend success responses without pausing a valid event', async () => {
-    for (const boundary of ['material', 'saveMaterial', 'create'] as const) {
+    for (const boundary of ['admitNews', 'create'] as const) {
       const f = fixture();
       await start(f);
       const backend = vi.fn<typeof fetch>(async () =>
@@ -187,8 +187,7 @@ describe('current NewsEventMessage Kafka boundary', () => {
       const context = new FlowContextClient('http://context.test', 'test-secret', backend);
       const jobs = new FlowJobClient('http://insights.test', 'test-secret', backend);
       f.flow.ingest.mockImplementationOnce(async () => {
-        if (boundary === 'material') await context.material('n', 'v');
-        else if (boundary === 'saveMaterial') await context.saveMaterial({});
+        if (boundary === 'admitNews') await context.admitNews({});
         else
           await jobs.create(
             job.request.jobId,

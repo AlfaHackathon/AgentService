@@ -231,6 +231,8 @@ it('dispatches both company phases through the agents registered in the built ap
         },
       });
     if (path.endsWith('/internal/analyses/prepare')) return Response.json({ drafts: [] });
+    if (path.endsWith('/internal/analyses/session'))
+      return Response.json({ receipt: null, previousEffects: [] });
     if (path.endsWith('/internal/effects')) return Response.json({ effects: [] });
     if (path.endsWith('/calculations/preview')) return Response.json([]);
     if (path.endsWith('/internal/analyses')) {

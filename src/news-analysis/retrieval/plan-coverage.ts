@@ -1,9 +1,9 @@
 import type { z } from 'zod';
 import type { materialSchema } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
-import type { NewsPlan, Segment, segmentBatchSchema } from '../contracts/flow.ts';
-import { sourceKey } from '../retrieval/source-catalog.ts';
-import { type SourceUnit, sourceUnits } from '../retrieval/source-units.ts';
+import type { NewsPlan, Segment } from '../contracts/flow.ts';
+import { sourceKey } from './source-catalog.ts';
+import { type SourceUnit, sourceUnits } from './source-units.ts';
 export function validateSegmentPlan(
   plan: NewsPlan,
   segments: Segment[],
@@ -96,23 +96,4 @@ export function validateSegmentPlanRefs(
       'SEGMENT_COVERAGE',
       'Segment plan must cover each input key exactly once with valid insight indexes. Every insight must cite the exact triggering news AND at least one supplied public original; use only supplied refs. Correct the result before submitting.',
     );
-}
-export function refreshSegmentBatches(
-  batches: z.infer<typeof segmentBatchSchema>[],
-  segments: Segment[],
-  requireSignals = false,
-) {
-  const latest = new Map(segments.map((s) => [s.key, s]));
-  return batches
-    .filter(
-      (b) =>
-        (requireSignals
-          ? b.coverageVersion === 4 && b.plan.signalCoverage !== undefined
-          : b.coverageVersion === 3 || b.coverageVersion === 4) &&
-        b.plan.sourceCoverage !== undefined &&
-        b.segments.every(
-          (s) => JSON.stringify(latest.get(s.key)?.labels) === JSON.stringify(s.labels),
-        ),
-    )
-    .map((b) => ({ ...b, segments: b.segments.map((s) => latest.get(s.key) ?? s) }));
 }

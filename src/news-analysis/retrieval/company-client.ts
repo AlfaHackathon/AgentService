@@ -1,11 +1,5 @@
 import { z } from 'zod';
-import {
-  companyProfileSchema,
-  type FlowRequest,
-  groupExpansionSchema,
-  roleProfileSchema,
-  segmentSchema,
-} from '../contracts/flow.ts';
+import { type FlowRequest, groupExpansionSchema, segmentSchema } from '../contracts/flow.ts';
 import { sourceChangeSchema } from '../contracts/source-changes.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
 
@@ -13,18 +7,6 @@ export class CompanyClient {
   readonly http: ServiceClient;
   constructor(url: string, secret: string, fetcher = fetch) {
     this.http = new ServiceClient(url, secret, fetcher);
-  }
-  async companies(asOf: string) {
-    return parseResponse(
-      z.object({ companies: z.array(companyProfileSchema) }),
-      await this.http.request(`/internal/knowledge/companies?asOf=${encodeURIComponent(asOf)}`),
-    ).companies;
-  }
-  async groups(asOf: string) {
-    return parseResponse(
-      z.object({ groups: z.array(z.object({ groupId: z.string() })) }),
-      await this.http.request(`/internal/knowledge/groups?asOf=${encodeURIComponent(asOf)}`),
-    ).groups;
   }
   async select(request: FlowRequest, queries: string[], previousCompanyIds: string[]) {
     return parseResponse(
@@ -55,16 +37,6 @@ export class CompanyClient {
       z.object({ segments: z.array(segmentSchema) }),
       await this.http.request('/internal/knowledge/segments', { asOf, companyIds }),
     ).segments;
-  }
-  async roleScope(asOf: string, personIds: string[], companyIds: string[]) {
-    return parseResponse(
-      z.object({
-        roles: z.array(roleProfileSchema),
-        missingPersonIds: z.array(z.string()),
-        companyIds: z.array(z.uuid()),
-      }),
-      await this.http.request('/internal/knowledge/role-scope', { asOf, personIds, companyIds }),
-    );
   }
   async changes(after: number) {
     return parseResponse(

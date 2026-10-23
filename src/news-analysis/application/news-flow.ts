@@ -8,22 +8,18 @@ import {
   flowRequestSchema,
   type NewsJob,
 } from '../contracts/flow.ts';
-import { instantAfter } from '../contracts/timestamps.ts';
 import type { CompanyClient } from '../retrieval/company-client.ts';
 import type { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
-import type { InsightDomainClient } from '../retrieval/insight-domain-client.ts';
 import type { NewsAnalyzer } from './company-analysis.ts';
 import { runCompany } from './company-run.ts';
 import { selectCompanies } from './company-selection.ts';
 import { projectJobResult } from './job-projection.ts';
-import { admitNewsEvent } from './news-admission.ts';
 import { analyzeSegmentBatch } from './segment-analysis.ts';
-import { refreshSegmentBatches } from './segment-policy.ts';
+import { refreshSegmentBatches } from './signal-cache.ts';
 
 type Dependencies = {
   context: FlowContextClient;
   companies: CompanyClient;
-  projections: InsightDomainClient;
   jobs: FlowJobClient;
   analyzer: NewsAnalyzer;
   reasoner: FlowReasoner;
@@ -64,7 +60,7 @@ export class NewsFlow {
     return this.deps.jobs.get(id);
   }
   async ingest(raw: unknown) {
-    return this.enqueue(await admitNewsEvent(this.deps.context, raw));
+    return this.enqueue(await this.deps.context.admitNews(raw));
   }
   async tick() {
     if (this.active) return;
@@ -77,7 +73,7 @@ export class NewsFlow {
     }
   }
   private async execute(initial: NewsJob) {
-    const { context, companies, projections, jobs, analyzer, reasoner } = this.deps;
+    const { context, companies, jobs, analyzer, reasoner } = this.deps;
     let job = initial;
     const request = flowRequestSchema.parse(job.request.parameters);
     const checkpoint = checkpointSchema.parse(job.checkpoint);
@@ -86,16 +82,15 @@ export class NewsFlow {
       checkpoint.companies = checkpoint.companies.filter(
         (company) => company.status === 'completed',
       );
-      checkpoint.roleViews = [];
-    } else {
-      checkpoint.roleViews = checkpoint.roleViews.filter(
-        (view) =>
-          typeof view === 'object' &&
-          view !== null &&
-          'status' in view &&
-          view.status === 'completed',
-      );
     }
+    // Raw model proposals survive retries; Insight validates their opaque scope version.
+    checkpoint.roleViews = checkpoint.roleViews.filter(
+      (view) =>
+        typeof view === 'object' &&
+        view !== null &&
+        'status' in view &&
+        (view.status === 'completed' || view.status === 'proposed'),
+    );
     let writes: Promise<unknown> = Promise.resolve();
     let leaseError: unknown;
     const save = (
@@ -116,20 +111,7 @@ export class NewsFlow {
     }, 20000);
     heartbeat.unref();
     try {
-      const news = await context.material(request.newsMaterialId, request.newsVersionId);
-      if (news.kind !== 'news' || instantAfter(news.knownAt, request.asOf))
-        throw new NewsAnalysisError(
-          422,
-          'INVALID_NEWS_TIME',
-          'The triggering news must be known at asOf',
-        );
-      // Internal global news jobs start from public observations; restricted news uses the explicit company route.
-      if (news.companyIds.length)
-        throw new NewsAnalysisError(
-          422,
-          'RESTRICTED_NEWS',
-          'A global news job requires a public news material',
-        );
+      const news = await context.news(request);
       await context.sync();
       if (!checkpoint.plan) {
         if (request.projectionOnly)
@@ -152,19 +134,10 @@ export class NewsFlow {
         );
         const sources: z.infer<typeof materialSchema>[] = [];
         let size = news.text.length;
-        for (const ref of [...refs.values()].slice(0, 8)) {
-          const source = await context.material(ref.materialId, ref.versionId);
-          if (
-            source.kind !== 'market' ||
-            source.companyIds.length ||
-            source.contentHash !== ref.contentHash ||
-            instantAfter(source.knownAt, request.asOf)
-          )
-            throw new NewsAnalysisError(
-              502,
-              'PUBLIC_SOURCE_SCOPE',
-              'Public retrieval returned an unavailable source',
-            );
+        for (const source of await context.publicSources(
+          [...refs.values()].slice(0, 8),
+          request.asOf,
+        )) {
           if (size + source.text.length > 90000) break;
           sources.push(source);
           size += source.text.length;
@@ -207,9 +180,6 @@ export class NewsFlow {
       if (!selectedCompanyIds) throw new Error('Missing durable company selection');
       checkpoint.selectedCompanyIds = selectedCompanyIds;
       await save();
-      const profiles = new Map(
-        (await companies.companies(request.asOf)).map((p) => [p.companyId.toLowerCase(), p]),
-      );
       if (!request.projectionOnly && reasoner.segments) {
         const segments = await companies.segments(request.asOf, selectedCompanyIds);
         checkpoint.segmentBatches = refreshSegmentBatches(
@@ -255,15 +225,13 @@ export class NewsFlow {
             const companyId = queue[cursor++];
             if (!companyId) break;
             await runCompany({
+              jobId: job.request.jobId,
+              news,
               companyId,
-              context,
+              jobs,
               analyzer,
               reasoner,
-              profiles,
-              request,
               checkpoint,
-              plan,
-              news,
               save: () => save(),
               enqueue: (raw) => this.enqueue(raw),
             });
@@ -274,15 +242,11 @@ export class NewsFlow {
         (id) => !checkpoint.companies.some((c) => c.companyId === id),
       );
       await projectJobResult({
-        companies,
-        projections,
-        analyzer,
+        jobId: job.request.jobId,
+        jobs,
         reasoner,
-        request,
         checkpoint,
-        plan,
-        news,
-        selectedCompanyIds,
+        asOf: request.asOf,
         save: () => save(),
         ensureLease: () => {
           if (leaseError) throw leaseError;

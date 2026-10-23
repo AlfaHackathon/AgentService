@@ -76,6 +76,7 @@ export function newsBoundaryViolations(file: string, source: string): string[] {
     const pureRetrieval = [
       `${feature}retrieval/source-catalog.ts`,
       `${feature}retrieval/source-units.ts`,
+      `${feature}retrieval/plan-coverage.ts`,
     ].includes(target);
     const allowed =
       layer === 'composition' ||

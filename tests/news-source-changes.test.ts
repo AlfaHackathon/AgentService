@@ -1,145 +1,85 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NewsAnalyzer } from '../src/news-analysis/application/company-analysis.ts';
-import { NewsFlow } from '../src/news-analysis/application/news-flow.ts';
 import { SourceChangePump } from '../src/news-analysis/application/source-change-pump.ts';
-import { flowRequestSchema } from '../src/news-analysis/contracts/flow.ts';
-import type { SourceChange } from '../src/news-analysis/contracts/source-changes.ts';
-import { CompanyClient } from '../src/news-analysis/retrieval/company-client.ts';
-import { ContextClient } from '../src/news-analysis/retrieval/context-client.ts';
-import { FlowContextClient, FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
-import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
-import { InsightDomainClient } from '../src/news-analysis/retrieval/insight-domain-client.ts';
+import { flowRequestSchema, jobSchema } from '../src/news-analysis/contracts/flow.ts';
+import { FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 
-const companyId = '11111111-1111-4111-8111-111111111111';
-function fixture(category = 'material:company', source: 'context' | 'company' = 'context') {
-  const context = new FlowContextClient('http://context.test', 'test'),
-    jobs = new FlowJobClient('http://insights.test', 'test');
-  const companies = new CompanyClient('http://companies.test', 'test');
-  vi.spyOn(companies, 'changes').mockResolvedValue([]);
-  const projections = new InsightDomainClient('http://insights.test', 'test');
-  const analyzer = new NewsAnalyzer({
-    context: new ContextClient('http://context.test', 'test'),
-    insights: new InsightClient('http://insights.test', 'test'),
-    reasoner: { analyze: async () => [] },
-  });
-  const flow = new NewsFlow({
-    context,
-    companies,
-    projections,
-    jobs,
-    analyzer,
-    reasoner: {
-      plan: async () => ({ eventSummary: 'Fixture', queries: ['fixture'], generalInsights: [] }),
-      role: async () => ({ actions: [], missingContext: [] }),
-    },
+const time = '2026-10-22T10:00:00Z';
+function fixture(source: 'context' | 'company' = 'context') {
+  const event = {
+    sequence: 1,
+    category: 'group',
+    entityId: 'group',
+    versionId: '2',
+    knownAt: time,
+    companyIds: [],
+  };
+  const request = flowRequestSchema.parse({
+    newsMaterialId: 'news',
+    newsVersionId: '1',
+    asOf: time,
+    projectionOnly: true,
   });
   let cursor = { version: 0, sequence: 0, afterQuestion: null as string | null };
-  const event: SourceChange = {
-    sequence: 1,
-    category,
-    entityId: 'synthetic-contract',
-    versionId: '2',
-    knownAt: '2026-10-22T10:00:00Z',
-    companyIds: [companyId],
-  };
+  const jobs = new FlowJobClient('http://insights.test', 'secret');
   vi.spyOn(jobs, 'sourceCursor').mockImplementation(async (name) =>
-    name !== source ? { version: 0, sequence: 0, afterQuestion: null } : { ...cursor },
+    name === source ? { ...cursor } : { version: 0, sequence: 0, afterQuestion: null },
   );
   const advance = vi.spyOn(jobs, 'advanceSourceCursor').mockImplementation(async (input) => {
     cursor = { ...input, version: cursor.version + 1 };
     return cursor;
   });
-  vi.spyOn(context, 'changes').mockImplementation(async (after) =>
-    source === 'context' && after < 1 ? [event] : [],
+  const sourceJobs = vi
+    .spyOn(jobs, 'sourceJobs')
+    .mockResolvedValue({ requests: [request], nextCursor: null });
+  const changes = vi.fn(async (after: number) => (after < 1 ? [event] : []));
+  const empty = vi.fn(async () => []);
+  const enqueue = vi.fn(async () =>
+    jobSchema.parse({
+      request: { ...request, jobId: 'followup', parameters: request },
+      status: 'queued',
+      version: 0,
+      workerId: null,
+      leaseUntil: null,
+      checkpoint: {},
+      error: null,
+      updatedAt: time,
+    }),
   );
-  vi.mocked(companies.changes).mockImplementation(async (after) =>
-    source === 'company' && after < 1 ? [event] : [],
-  );
-  vi.spyOn(companies, 'groups').mockResolvedValue([{ groupId: 'root' }]);
-  const work = {
-    effectId: 'question-1',
-    companyId,
-    bankProfileId: null,
-    newsMaterialId: 'news-a',
-    newsVersionId: '1',
-  };
-  const react = vi
-    .spyOn(analyzer, 'react')
-    .mockResolvedValue({ items: [work, { ...work, effectId: 'question-2' }], nextCursor: null });
-  const enqueue = vi.spyOn(flow, 'enqueue').mockResolvedValue({
-    request: {
-      jobId: 'fixture',
-      newsMaterialId: 'news-a',
-      newsVersionId: '1',
-      asOf: event.knownAt,
-      parameters: {},
-    },
-    status: 'queued',
-    version: 0,
-    workerId: null,
-    leaseUntil: null,
-    checkpoint: {},
-    error: null,
-    updatedAt: event.knownAt,
-  });
-  const pump = () => new SourceChangePump(context, jobs, analyzer, flow, companies);
-  return { pump, enqueue, advance, react, companies, context, cursor: () => cursor, work };
+  const pump = () =>
+    new SourceChangePump(
+      { changes: source === 'context' ? changes : empty },
+      jobs,
+      { enqueue },
+      { changes: source === 'company' ? changes : empty },
+    );
+  return { pump, enqueue, advance, sourceJobs, event, request, cursor: () => cursor };
 }
-describe('durable canonical source change delivery', () => {
-  it('keeps the Company journal cursor independent of material sequence numbers', async () => {
-    const f = fixture('group', 'company');
+describe('durable source delivery of backend-selected jobs', () => {
+  it('uses an independent Company cursor and enqueues only backend proposals', async () => {
+    const f = fixture('company');
     await f.pump().tick();
+    expect(f.enqueue).toHaveBeenCalledWith(f.request);
     expect(f.advance).toHaveBeenCalledWith(expect.objectContaining({ sequence: 1 }), 'company');
-    expect(f.enqueue).toHaveBeenCalledWith(expect.objectContaining({ projectionOnly: true }));
-  });
-  it('batches more than 32 groups without blocking or truncating the source cursor', async () => {
-    const f = fixture();
-    vi.mocked(f.companies.groups).mockResolvedValue(
-      Array.from({ length: 33 }, (_, i) => ({ groupId: `group-${i}` })),
-    );
-    await f.pump().tick();
-    expect(f.enqueue).toHaveBeenCalledTimes(2);
-    const groups = f.enqueue.mock.calls.flatMap((c) => flowRequestSchema.parse(c[0]).groupIds);
-    expect(new Set(groups).size).toBe(33);
-    expect(f.cursor().sequence).toBe(1);
-  });
-  it('deduplicates questions by company/news and advances only after durable enqueue', async () => {
-    const f = fixture();
-    await f.pump().tick();
-    expect(f.enqueue).toHaveBeenCalledTimes(1);
-    expect(f.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetCompanyIds: [companyId],
-        trigger: { materialId: 'synthetic-contract', versionId: '2' },
-        projectionOnly: false,
-      }),
-    );
     expect(f.advance.mock.invocationCallOrder[0]).toBeGreaterThan(
       f.enqueue.mock.invocationCallOrder[0] ?? 0,
     );
-    expect(f.cursor().sequence).toBe(1);
   });
-  it('replays an enqueue after cursor failure and retains the original trigger after restart', async () => {
+  it('replays enqueue after cursor commit failure', async () => {
     const f = fixture();
-    f.advance.mockRejectedValueOnce(new Error('Synthetic crash before cursor commit'));
-    await expect(f.pump().tick()).rejects.toThrow('Synthetic crash');
+    f.advance.mockRejectedValueOnce(new Error('crash'));
+    await expect(f.pump().tick()).rejects.toThrow('crash');
     expect(f.cursor().sequence).toBe(0);
     await f.pump().tick();
     expect(f.enqueue.mock.calls[0]).toEqual(f.enqueue.mock.calls[1]);
     expect(f.cursor().sequence).toBe(1);
   });
-  it('continues dependency pages and routes membership changes to projection refresh', async () => {
-    const f = fixture('group');
-    f.react.mockResolvedValueOnce({ items: [f.work], nextCursor: 'question-64' });
+  it('retains the event sequence while continuing the backend page', async () => {
+    const f = fixture();
+    f.sourceJobs.mockResolvedValueOnce({ requests: [f.request], nextCursor: 'next' });
     await f.pump().tick();
-    expect(f.cursor()).toMatchObject({ sequence: 0, afterQuestion: 'question-64' });
+    expect(f.cursor()).toMatchObject({ sequence: 0, afterQuestion: 'next' });
     await f.pump().tick();
-    expect(f.react.mock.calls[1]?.[1]).toBe('question-64');
-    expect(f.enqueue.mock.calls[0]?.[0]).toMatchObject({
-      projectionOnly: true,
-      groupIds: ['root'],
-    });
-    expect(f.enqueue.mock.calls[0]?.[0]).not.toHaveProperty('trigger');
+    expect(f.sourceJobs.mock.calls[1]).toEqual([f.event, 'next']);
     expect(f.cursor().sequence).toBe(1);
   });
 });

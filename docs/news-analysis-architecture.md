@@ -15,31 +15,30 @@ Kafka producer contract сохранён. Доменные операции вы
 | `composition` | Создание конкретных адаптеров, запуск и остановка runtime | `configuration.ts` |
 
 Определения агентов остаются в `src/agents/news-analysis.ts`, где их обнаруживает Flue.
-Они используют schemas/validators/tools из feature-модуля; application получает
+Они подключают отдельные наборы `reasoning/tools/{analysis,segments,evidence}.ts`.
+Общий result tool и его execution budget зарегистрированы в `reasoning/tools/result.ts`; application получает
 reasoner через `NewsReasoner` / `FlowReasoner`, без импорта конкретного агента.
 
 ## Разделённые обязанности
 
 - `news-flow.ts` владеет lease, сериализацией checkpoint writes, bounded concurrency,
   этапами планирования/сегментации и итоговым статусом задания.
-- `news-admission.ts` принимает публикацию, вычисляет прежние immutable IDs,
-  разрешает конкурентный 409 через чтение победившей версии и возвращает параметры
-  задания с оригинальным `knownAt`. Он не запускает worker и не знает Kafka.
+- Приём публикации вызывает ContextService `/internal/news/admit`; канонические IDs,
+  конкурентная запись и исходный `knownAt` принадлежат ContextService.
 - `company-selection.ts` вызывает CompanyService: ранжирование, раскрытие групп,
   явные роли и сегменты принадлежат CompanyService. Agent сохраняет результат выбора в checkpoint.
-- `company-run.ts` запрашивает решение глубины у InsightService, регистрирует watch до canonical receipt,
-  исполняет компанию и догоняет source changes. Enqueue предшествует продвижению
-  watch cursor; ограниченная пачка catch-up остаётся незавершённой до следующего запуска.
-- `job-projection.ts` запрашивает canonical facts и группы у InsightService и собирает
-  checkpoint результата. `role-projection.ts` передаёт ролевому reasoner только
-  готовую разрешённую проекцию InsightService. Read grants проверяет backend.
+- `company-run.ts` выполняет готовый `/internal/execution/company-plan`, сохраняет watch
+  до получения canonical receipt и передаёт модели разрешённые оригиналы. Решение глубины,
+  bank profile, механизмы и задания catch-up определяет InsightService.
+- `job-projection.ts` запрашивает `/internal/projections/job`, вызывает ролевую модель
+  для выданных scopes и возвращает предложения backend. InsightService проверяет действия,
+  строит canonical heads, итог и coverage. Agent сохраняет ответ в checkpoint.
 - `draft-validation.ts` проверяет привязку drafts к точным версиям источников,
   triggering news и привязку handles к источникам до preview/commit. Применимость,
   predecessor IDs, глубину и канонические проекции проверяет InsightService.
-- `segment-policy.ts` проверяет полноту ответа модели, source/segment coverage
-  и обновления сохранённых batches. `segment-analysis.ts` выполняет retrieval и
-  пополняет durable inventories, вызывая переданный reasoner. `signal-cache.ts`
-  проверяет пригодность законченного inventory без зависимости от reasoning.
+- `retrieval/plan-coverage.ts` проверяет синтаксическую полноту цитат и source/unit coverage ответа модели.
+  `signal-cache.ts` переиспользует batches и inventories при прежнем протоколе и входных данных.
+  `segment-analysis.ts` выполняет retrieval и пополняет durable inventories, вызывая reasoner.
 - `service-client.ts` отделяет retry/deadline/auth от typed API операций.
   CAS lease/cursor POST не получают replay retry; прежние тайм-ауты сохранены.
 - `tool-evidence.ts` отделяет допуск evidence и character budgets от Flue hooks.

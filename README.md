@@ -9,6 +9,8 @@ CompanyService владеет профилями компаний, группа�
 ContextService владеет версиями материалов и поиском. InsightService владеет вопросами,
 расчётами, решениями глубины, сохранённым состоянием, приоритетами и ролевыми проекциями.
 AgentService выполняет Flue-рассуждение, вызовы инструментов и продолжение заданий.
+Определения агентов подключают наборы из `src/news-analysis/reasoning/tools/`;
+регистрация инструментов находится в этих модулях, отдельно от определений агентов.
 
 ## Новостное состояние и продолжение
 
@@ -19,7 +21,7 @@ Native result содержит `question={mechanism,frame,unit,targetPeriod,base
 выбирает handle `q0`; историю, predecessor IDs и операции хранилища она не задаёт.
 Разные механизмы и базы сравнения сохраняются отдельно.
 
-`NewsAnalyzer` читает один before snapshot со `stateVersion`, делает до двух адресных доборов
+`NewsAnalyzer` запрашивает готовую session у InsightService со `stateVersion`, делает до двух адресных доборов
 по максимум трём запросам, затем отправляет атомарный пакет с `expectedStateVersion`.
 Добор прекращается при отсутствии нового оригинала, исчерпанном доступном корпусе или бюджете;
 queries/полученные версии/stopReason сохраняются в receipt. Отсутствие основания остаётся unknown.
@@ -28,12 +30,17 @@ HTTP-клиенты читают пакетный ответ ошибки Contex
 и прежний `{code,message}` для middleware. При конфликте HTTP 409 во время записи
 applicability receipt InsightService решает, требуется ли глубокий анализ.
 Подготовка predecessor IDs и проверка атомарной записи выполняются в InsightService.
+`/internal/execution/company-plan` определяет анализ компании и сохранённую глубину;
+`/internal/projections/job` формирует canonical heads, ролевые проекции и coverage по durable checkpoint.
+Agent не собирает банковский scope и доменные итоги локально.
 
 `companyBudget` ограничивает одну lease-партию. Job с оставшимися адресатами получает `partial`
 и подхватывается worker после перезапуска; сохранённые plan/receipts переиспользуются.
 Предыдущие адресаты читаются из canonical question index страницами по 256.
 `SourceChangePump` читает журналы материалов ContextService и знаний CompanyService,
-ставит durable jobs и затем продвигает отдельный CAS cursor каждого журнала в InsightService. Новые версии оснований инициируют пересмотр с `trigger`; изменения
+получает готовые задания через `/internal/execution/source-jobs`, ставит их в durable queue
+и затем продвигает отдельный CAS cursor каждого журнала в InsightService.
+Повторный добор для зарегистрированной компании определяет `/internal/execution/company-watch`. Новые версии оснований инициируют пересмотр с `trigger`; изменения
 группы/роли — `projectionOnly` refresh общего состояния без нового company reasoning.
 
 InsightService агрегирует группы по сопоставимым mechanism/frame/baseline/basis/unit/period. Устаревшие основания

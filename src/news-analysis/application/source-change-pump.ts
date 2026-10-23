@@ -1,27 +1,23 @@
 import type { CompanyClient } from '../retrieval/company-client.ts';
 import type { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
-import type { NewsAnalyzer } from './company-analysis.ts';
 import type { NewsFlow } from './news-flow.ts';
 
 export class SourceChangePump {
   private active = false;
   private timer: ReturnType<typeof setInterval> | undefined;
-  private readonly context: FlowContextClient;
-  private readonly companies: CompanyClient;
+  private readonly context: Pick<FlowContextClient, 'changes'>;
+  private readonly companies: Pick<CompanyClient, 'changes'>;
   private readonly jobs: FlowJobClient;
-  private readonly analyzer: NewsAnalyzer;
-  private readonly flow: NewsFlow;
+  private readonly flow: Pick<NewsFlow, 'enqueue'>;
   constructor(
-    context: FlowContextClient,
+    context: Pick<FlowContextClient, 'changes'>,
     jobs: FlowJobClient,
-    analyzer: NewsAnalyzer,
-    flow: NewsFlow,
-    companies: CompanyClient,
+    flow: Pick<NewsFlow, 'enqueue'>,
+    companies: Pick<CompanyClient, 'changes'>,
   ) {
     this.context = context;
     this.companies = companies;
     this.jobs = jobs;
-    this.analyzer = analyzer;
     this.flow = flow;
   }
   start() {
@@ -53,58 +49,8 @@ export class SourceChangePump {
       await (source === 'company' ? this.companies : this.context).changes(cursor.sequence)
     )[0];
     if (!event) return;
-    const supported = ['material:company', 'material:market', 'company', 'group', 'role'].includes(
-      event.category,
-    );
-    if (!supported) {
-      await this.jobs.advanceSourceCursor(
-        {
-          ...cursor,
-          sequence: event.sequence,
-          afterQuestion: null,
-        },
-        source,
-      );
-      return;
-    }
-    const page = await this.analyzer.react(event, cursor.afterQuestion);
-    const anchors = new Map<
-      string,
-      { newsMaterialId: string; newsVersionId: string; companies: Set<string> }
-    >();
-    for (const work of page.items) {
-      const key = JSON.stringify([work.newsMaterialId, work.newsVersionId]);
-      const anchor = anchors.get(key) ?? {
-        newsMaterialId: work.newsMaterialId,
-        newsVersionId: work.newsVersionId,
-        companies: new Set<string>(),
-      };
-      anchor.companies.add(work.companyId);
-      anchors.set(key, anchor);
-    }
-    const groups = page.items.length
-      ? (await this.companies.groups(event.knownAt)).map((g) => g.groupId)
-      : [];
-    const groupBatches: string[][] = [];
-    groups.sort();
-    for (let offset = 0; offset < groups.length; offset += 32)
-      groupBatches.push(groups.slice(offset, offset + 32));
-    if (!groupBatches.length) groupBatches.push([]);
-    for (const anchor of anchors.values())
-      for (const groupIds of groupBatches)
-        await this.flow.enqueue({
-          newsMaterialId: anchor.newsMaterialId,
-          newsVersionId: anchor.newsVersionId,
-          asOf: event.knownAt,
-          targetCompanyIds: [...anchor.companies].sort(),
-          groupIds,
-          companyBudget: 4,
-          textCompleteness: 'unknown',
-          projectionOnly: !event.category.startsWith('material:'),
-          ...(event.category.startsWith('material:')
-            ? { trigger: { materialId: event.entityId, versionId: event.versionId } }
-            : {}),
-        });
+    const page = await this.jobs.sourceJobs(event, cursor.afterQuestion);
+    for (const request of page.requests) await this.flow.enqueue(request);
     // Enqueue precedes cursor CAS: a crash replays identical job IDs, never loses work.
     await this.jobs.advanceSourceCursor(
       {

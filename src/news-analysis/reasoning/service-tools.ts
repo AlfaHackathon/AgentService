@@ -199,18 +199,13 @@ export function useServiceTools(scope: ToolScope | undefined) {
           const hits = await client.search(data.query, asOf, true);
           const known = new Set(state.sources.map(sourceKey));
           const fresh: Source[] = [];
-          for (const ref of hits.hits
-            .flatMap((h) => [...(h.relatedVersions ?? []), ...h.sourceRefs])
-            .slice(0, 6)) {
-            client.http.deadlineAt = scope.deadlineAt;
-            const source = await client.material(ref.materialId, ref.versionId);
-            if (
-              sourceKey(ref) !== sourceKey(source) ||
-              source.kind !== 'market' ||
-              source.companyIds.length ||
-              instantAfter(source.knownAt, asOf)
-            )
-              throw new Error('Public scope mismatch');
+          const originals = await client.publicSources(
+            hits.hits
+              .flatMap((hit) => [...(hit.relatedVersions ?? []), ...hit.sourceRefs])
+              .slice(0, 6),
+            asOf,
+          );
+          for (const source of originals) {
             if (!known.has(sourceKey(source))) {
               known.add(sourceKey(source));
               fresh.push(source);

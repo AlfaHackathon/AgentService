@@ -141,6 +141,23 @@ describe('internal news analysis through actual HTTP clients', () => {
           })),
         });
       }
+      if (url.pathname === '/insight-service/internal/analyses/session') {
+        const input = await incoming.json();
+        const receipt = receipts.get(input.newsVersionId);
+        if (
+          receipt &&
+          (receipt.asOf !== input.asOf ||
+            (receipt.bankProfileId ?? null) !== (input.bankProfileId ?? null))
+        )
+          return Response.json(
+            { errorMessage: 'This news version was processed with different analysis parameters' },
+            { status: 409 },
+          );
+        return Response.json({
+          receipt: receipt ? { ...receipt, duplicate: true } : null,
+          previousEffects: [...effects.values()],
+        });
+      }
       if (url.pathname === '/insight-service/internal/effects')
         return Response.json({ effects: [...effects.values()] });
       if (url.pathname === '/insight-service/internal/analyses' && incoming.method === 'GET') {
@@ -151,6 +168,11 @@ describe('internal news analysis through actual HTTP clients', () => {
       }
       if (url.pathname === '/insight-service/internal/analyses' && incoming.method === 'POST') {
         const body = analysisWriteSchema.parse(await incoming.json());
+        if (new Set(body.drafts.map((draft) => draft.effectKey)).size !== body.drafts.length)
+          return Response.json(
+            { errorMessage: 'Draft batch repeats an effect key' },
+            { status: 422 },
+          );
         writes.push(body);
         if (rejectSave)
           return Response.json(
@@ -332,7 +354,10 @@ describe('internal news analysis through actual HTTP clients', () => {
         review: async (_input, proposals) => proposals,
       },
     });
-    await expect(analyzer.analyze(request)).rejects.toMatchObject({ code: 'DUPLICATE_EFFECT_KEY' });
+    await expect(analyzer.analyze(request)).rejects.toMatchObject({
+      status: 422,
+      code: 'UPSTREAM_ERROR',
+    });
     expect(state.writes).toHaveLength(0);
   });
 
@@ -375,21 +400,6 @@ describe('internal news analysis through actual HTTP clients', () => {
     ]);
     expect((await state.post({ ...request, newsVersionId: 'v2' })).status).toBe(422);
     expect(state.writes).toHaveLength(1);
-  });
-
-  it('rejects the review repro at 100ns precision and accepts an equivalent offset', async () => {
-    const state = await setup();
-    await state.post(request);
-    const receipt = state.receipts.get('v1');
-    if (!receipt) throw new Error('Missing test receipt');
-    state.receipts.set('v1', { ...receipt, asOf: '2026-10-21T07:20:00.0000001Z' });
-    expect((await state.post({ ...request, asOf: '2026-10-21T07:20:00.0000002Z' })).status).toBe(
-      409,
-    );
-    const equivalent = await state.post({ ...request, asOf: '2026-10-21T10:20:00.0000001+03:00' });
-    expect(equivalent.status).toBe(200);
-    expect(await equivalent.json()).toMatchObject({ duplicate: true, reasoningInvoked: false });
-    expect(state.analyze).toHaveBeenCalledTimes(1);
   });
 
   it('requires context knowledge time to match exactly and rejects precision above 100ns', async () => {

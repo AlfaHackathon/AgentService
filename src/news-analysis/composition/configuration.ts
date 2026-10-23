@@ -7,7 +7,6 @@ import { CompanyClient } from '../retrieval/company-client.ts';
 import { ContextClient } from '../retrieval/context-client.ts';
 import { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
 import { InsightClient } from '../retrieval/insight-client.ts';
-import { InsightDomainClient } from '../retrieval/insight-domain-client.ts';
 import type { NewsAnalysisRouteOptions } from '../transport/http/routes.ts';
 import { serviceSettingsSchema } from '../transport/http/settings.ts';
 import { createNewsKafkaConsumer } from '../transport/kafka/consumer.ts';
@@ -39,7 +38,6 @@ export function createConfiguredNewsAnalysis(
   const flow = new NewsFlow({
     context: new FlowContextClient(CONTEXT_SERVICE_URL, secret),
     companies: new CompanyClient(COMPANY_SERVICE_URL, secret),
-    projections: new InsightDomainClient(INSIGHT_SERVICE_URL, secret),
     jobs: new FlowJobClient(INSIGHT_SERVICE_URL, secret),
     analyzer,
     reasoner: createFlowReasoner(environment),
@@ -47,7 +45,6 @@ export function createConfiguredNewsAnalysis(
   const changes = new SourceChangePump(
     new FlowContextClient(CONTEXT_SERVICE_URL, secret),
     new FlowJobClient(INSIGHT_SERVICE_URL, secret),
-    analyzer,
     flow,
     new CompanyClient(COMPANY_SERVICE_URL, secret),
   );

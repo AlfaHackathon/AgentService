@@ -5,7 +5,6 @@ import {
   reasoningOutputSchema,
 } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
-import type { SourceChange } from '../contracts/source-changes.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 import type { InsightClient } from '../retrieval/insight-client.ts';
@@ -31,29 +30,6 @@ export class NewsAnalyzer {
   recipients(asOf: string, after?: string, materialId?: string) {
     return this.dependencies.insights.recipients(asOf, after, materialId);
   }
-  currentEffects(input: AnalysisRequest) {
-    return this.dependencies.insights.getEffects(input);
-  }
-  react(change: SourceChange, afterQuestion?: string | null) {
-    return this.dependencies.insights.react(change, afterQuestion);
-  }
-  async readCompany(input: AnalysisRequest): Promise<AnalysisResult> {
-    const receipt = await this.dependencies.insights.canonicalCompany(input);
-    return {
-      ...receipt,
-      reasoningInvoked: false,
-      contextComplete: receipt.contextComplete ?? false,
-    };
-  }
-  async recordApplicability(input: AnalysisRequest): Promise<AnalysisResult> {
-    const receipt = await this.dependencies.insights.applicability(input);
-    return {
-      ...receipt,
-      reasoningInvoked: false,
-      contextComplete: receipt.contextComplete ?? false,
-    };
-  }
-
   analyze(input: AnalysisRequest): Promise<AnalysisResult> {
     const key = JSON.stringify(input);
     const running = this.inFlight.get(key);
@@ -68,37 +44,13 @@ export class NewsAnalyzer {
 
   private async run(input: AnalysisRequest): Promise<AnalysisResult> {
     const { context: contextClient, insights, reasoner } = this.dependencies;
-    const receipt = await insights.findAnalysis(input);
-    if (receipt) {
-      if (
-        receipt.companyId.toLowerCase() !== input.companyId ||
-        receipt.newsMaterialId !== input.newsMaterialId ||
-        receipt.newsVersionId !== input.newsVersionId ||
-        JSON.stringify(receipt.trigger ?? null) !== JSON.stringify(input.trigger ?? null)
-      )
-        throw new NewsAnalysisError(
-          502,
-          'UPSTREAM_CONTRACT',
-          'Analysis receipt scope does not match',
-        );
-      if (
-        !sameInstant(receipt.asOf, input.asOf) ||
-        (receipt.bankProfileId ?? null) !== (input.bankProfileId ?? null)
-      )
-        throw new NewsAnalysisError(
-          409,
-          'ANALYSIS_CONFLICT',
-          'This news version was processed with different analysis parameters',
-        );
-      // These are the saved revisions of this analysis, even after a later correction.
+    const session = await insights.analysisSession(input);
+    if (session.receipt)
       return {
-        ...receipt,
-        duplicate: true,
+        ...session.receipt,
         reasoningInvoked: false,
-        contextComplete: receipt.contextComplete ?? false,
+        contextComplete: session.receipt.contextComplete ?? false,
       };
-    }
-
     let context = await contextClient.getContext(input);
     if (input.trigger) {
       const source = await contextClient.material(
@@ -134,22 +86,11 @@ export class NewsAnalyzer {
         'UPSTREAM_CONTRACT',
         'Context scope does not match the request',
       );
-    const before = await insights.getState(input);
-    const previousEffects = before.effects.filter(
-      (e) =>
-        !input.mechanisms?.length ||
-        !e.currentRevision.question ||
-        input.mechanisms.includes(e.currentRevision.question.mechanism),
-    );
-    if (
-      previousEffects.some(
-        (effect) =>
-          effect.companyId.toLowerCase() !== input.companyId ||
-          (effect.newsMaterialId !== input.newsMaterialId && !effect.currentRevision.question),
-      )
-    )
-      throw new NewsAnalysisError(502, 'UPSTREAM_CONTRACT', 'Previous effect scope does not match');
-
+    const before = {
+      effects: session.previousEffects,
+      stateVersion: session.stateVersion ?? undefined,
+    };
+    const previousEffects = session.previousEffects;
     const reasoningInput: import('../contracts/analysis.ts').ReasoningInput = {
       request: input,
       context,
@@ -185,7 +126,7 @@ export class NewsAnalyzer {
     };
     const usedQueries = new Set<string>();
     for (let round = 1; reasoner.retrievalMode !== 'agent_tools' && round <= 2; round++) {
-      validateReferences(first, context, input.companyId, false);
+      validateReferences(first, context);
       const missing = first
         .flatMap((d) => d.assessment?.unknowns ?? [])
         .filter((f) => f.query && !usedQueries.has(f.query));
@@ -241,7 +182,7 @@ export class NewsAnalyzer {
     }
     // Preliminary candidates are not writes. Let the final review consolidate
     // repeated identities; source binding remains mandatory before any preview.
-    validateReferences(first, context, input.companyId, false);
+    validateReferences(first, context);
     const proposed = reasoningOutputSchema.safeParse({
       drafts: reasoner.review
         ? await reasoner.review(reasoningInput, first, await insights.preview(first))
@@ -254,7 +195,7 @@ export class NewsAnalyzer {
         'Reasoner returned an invalid draft contract',
       );
     const drafts = await insights.prepare(input, proposed.data.drafts, before.stateVersion);
-    validateReferences(drafts, context, input.companyId);
+    validateReferences(drafts, context);
     // InsightService commits every revision and completion receipt in one transaction,
     // including empty batches. Omitted previous effects are never deleted or zeroed.
     const saved = await insights.saveAnalysis({

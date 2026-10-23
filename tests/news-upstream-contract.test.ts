@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { flowRequestSchema } from '../src/news-analysis/contracts/flow.ts';
 import { CompanyClient } from '../src/news-analysis/retrieval/company-client.ts';
 import { FlowContextClient, FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
@@ -13,9 +14,20 @@ type Clients = {
   insights: InsightClient;
 };
 const requests: { name: string; invoke: (clients: Clients) => Promise<unknown> }[] = [
-  { name: 'companies', invoke: ({ companies }) => companies.companies(time) },
-  { name: 'groups', invoke: ({ companies }) => companies.groups(time) },
-  { name: 'roles', invoke: ({ companies }) => companies.roleScope(time, [], []) },
+  {
+    name: 'company selection',
+    invoke: ({ companies }) =>
+      companies.select(
+        flowRequestSchema.parse({ newsMaterialId: 'news', newsVersionId: '1', asOf: time }),
+        ['query'],
+        [],
+      ),
+  },
+  { name: 'segments', invoke: ({ companies }) => companies.segments(time, []) },
+  {
+    name: 'company plan',
+    invoke: ({ jobs }) => jobs.companyPlan('job', '11111111-1111-4111-8111-111111111111'),
+  },
   { name: 'search', invoke: ({ context }) => context.search('query', time) },
   { name: 'source changes', invoke: ({ context }) => context.changes(0) },
   { name: 'read cursor', invoke: ({ jobs }) => jobs.sourceCursor() },
@@ -25,15 +37,18 @@ const requests: { name: string; invoke: (clients: Clients) => Promise<unknown> }
   { name: 'recipients', invoke: ({ insights }) => insights.recipients(time) },
   {
     name: 'source reaction',
-    invoke: ({ insights }) =>
-      insights.react({
-        sequence: 1,
-        category: 'material:market',
-        entityId: 'material',
-        versionId: 'v1',
-        knownAt: time,
-        companyIds: [],
-      }),
+    invoke: ({ jobs }) =>
+      jobs.sourceJobs(
+        {
+          sequence: 1,
+          category: 'material:market',
+          entityId: 'material',
+          versionId: 'v1',
+          knownAt: time,
+          companyIds: [],
+        },
+        null,
+      ),
   },
 ];
 

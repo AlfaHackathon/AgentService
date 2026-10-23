@@ -8,16 +8,10 @@ export function sourceKey(source: { materialId: string; versionId: string; conte
 export function validateReferences(
   drafts: EffectDraft[],
   context: Awaited<ReturnType<ContextClient['getContext']>>,
-  _companyId: string,
-  requireUniqueKeys = true,
 ) {
   const available = new Set([context.news, ...context.materials].map(sourceKey));
   const currentNews = sourceKey(context.news);
-  const keys = new Set<string>();
   for (const draft of drafts) {
-    if (requireUniqueKeys && keys.has(draft.effectKey))
-      throw new NewsAnalysisError(422, 'DUPLICATE_EFFECT_KEY', 'Draft batch repeats an effect key');
-    keys.add(draft.effectKey);
     if (
       draft.assessment?.applicability?.sourceRefs.some(
         (r) => !draft.sourceRefs.some((s) => sourceKey(s) === sourceKey(r)),

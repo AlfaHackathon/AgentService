@@ -91,8 +91,11 @@ function fixture(found: boolean, complete = false) {
   vi.spyOn(insights, 'prepare').mockImplementation(async (_request, drafts) =>
     drafts.map((draft) => ({ ...draft, expectedPreviousRevisionId: null })),
   );
-  vi.spyOn(insights, 'findAnalysis').mockResolvedValue(null);
-  vi.spyOn(insights, 'getState').mockResolvedValue({ effects: [], stateVersion: 0 });
+  vi.spyOn(insights, 'analysisSession').mockResolvedValue({
+    receipt: null,
+    previousEffects: [],
+    stateVersion: 0,
+  });
   vi.spyOn(context, 'getContext').mockResolvedValue({
     ...bundle,
     coverage: { ...bundle.coverage, complete },

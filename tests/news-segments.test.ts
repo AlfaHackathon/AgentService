@@ -1,9 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { analyzeSegmentBatch } from '../src/news-analysis/application/segment-analysis.ts';
-import {
-  refreshSegmentBatches,
-  validateSegmentPlan,
-} from '../src/news-analysis/application/segment-policy.ts';
+import { refreshSegmentBatches } from '../src/news-analysis/application/signal-cache.ts';
 import { materialSchema } from '../src/news-analysis/contracts/analysis.ts';
 import {
   checkpointSchema,
@@ -14,8 +11,16 @@ import {
 import type { SignalInventory } from '../src/news-analysis/contracts/signals.ts';
 import { extractInventories } from '../src/news-analysis/reasoning/source-signals.ts';
 import { FlowContextClient } from '../src/news-analysis/retrieval/flow-clients.ts';
+import { validateSegmentPlan } from '../src/news-analysis/retrieval/plan-coverage.ts';
 import { sourceUnits } from '../src/news-analysis/retrieval/source-units.ts';
 
+function contextFixture() {
+  const client = new FlowContextClient('http://fixture', 'test');
+  vi.spyOn(client, 'publicSources').mockImplementation(async (refs) =>
+    Promise.all(refs.map((ref) => client.material(ref.materialId, ref.versionId))),
+  );
+  return client;
+}
 const at = '2026-10-23T10:00:00Z',
   a = '11111111-1111-4111-8111-111111111111',
   b = '22222222-2222-4222-8222-222222222222';
@@ -84,7 +89,7 @@ it('rejects uncovered segments, out of range indices and foreign sources', () =>
   expect(() => validateSegmentPlan(plan, segments, news, [market])).not.toThrow();
 });
 it('retrieves and reasons once for two companies and rejects restricted originals before model', async () => {
-  const context = new FlowContextClient('http://fixture', 'test');
+  const context = contextFixture();
   vi.spyOn(context, 'search').mockResolvedValue({
     hits: [
       { companyId: a, sourceRefs: [ref(market)], score: 1, materialId: 'bank', versionId: '1' },
@@ -94,14 +99,14 @@ it('retrieves and reasons once for two companies and rejects restricted original
     exhaustive: false,
     candidatesExamined: 1,
   });
-  const read = vi.spyOn(context, 'material').mockResolvedValue(market);
+  vi.spyOn(context, 'material').mockResolvedValue(market);
   const reason = vi.fn(async () => plan);
   const result = await analyzeSegmentBatch(context, reason, news, segments, at);
   expect(context.search).toHaveBeenCalledTimes(1);
   expect(reason).toHaveBeenCalledTimes(1);
   expect(result.segments[0]?.companyIds).toEqual([a, b]);
   expect(result.retrievalExhaustive).toBe(false);
-  read.mockResolvedValue({ ...market, companyIds: [a] });
+  vi.mocked(context.publicSources).mockRejectedValueOnce(new Error('Public source unavailable'));
   await expect(analyzeSegmentBatch(context, reason, news, segments, at)).rejects.toThrow(
     'unavailable',
   );
@@ -125,7 +130,7 @@ it('refreshes late membership without model work, but invalidates changed niche 
 it.each(['original', 'repeated table headers'])(
   'omits a whole correction bundle exceeding the %s budget',
   async (kind) => {
-    const context = new FlowContextClient('http://fixture', 'test');
+    const context = contextFixture();
     const v2 = {
       ...market,
       versionId: '2',
@@ -168,7 +173,7 @@ it.each(['original', 'repeated table headers'])(
 );
 
 it('does not hydrate bundles known to exceed the original limit', async () => {
-  const context = new FlowContextClient('http://fixture', 'test');
+  const context = contextFixture();
   const refs = Array.from({ length: 17 }, (_, i) => ({ ...ref(market), versionId: String(i) }));
   vi.spyOn(context, 'search').mockResolvedValue({
     hits: [{ companyId: a, sourceRefs: refs, score: 1, materialId: 'bank', versionId: '1' }],
@@ -323,7 +328,7 @@ it('decodes persisted v2 checkpoints before invalidating their old window covera
 });
 
 it('persists one source extraction and reuses it for a second segment batch, invalidating changed versions', async () => {
-  const context = new FlowContextClient('http://fixture', 'test');
+  const context = contextFixture();
   vi.spyOn(context, 'search').mockResolvedValue({
     hits: [
       { companyId: a, sourceRefs: [ref(market)], score: 1, materialId: 'bank', versionId: '1' },
@@ -384,7 +389,7 @@ it('reserves output space for independently cached inventories and omits whole o
       sourceUnits([source]),
     ),
   );
-  const context = new FlowContextClient('http://fixture', 'test');
+  const context = contextFixture();
   vi.spyOn(context, 'search').mockResolvedValue({
     hits: originals.map((s) => ({
       companyId: a,
@@ -431,7 +436,7 @@ it('reserves output space for independently cached inventories and omits whole o
 
 it('keeps a completed source checkpoint when a later source fails and only retries the missing source', async () => {
   const originals = [market, { ...market, materialId: 'second-original' }];
-  const context = new FlowContextClient('http://fixture', 'test');
+  const context = contextFixture();
   vi.spyOn(context, 'search').mockResolvedValue({
     hits: originals.map((s) => ({
       companyId: a,

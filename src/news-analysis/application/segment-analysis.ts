@@ -3,11 +3,10 @@ import type { materialSchema } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { type NewsPlan, type Segment, segmentBatchSchema } from '../contracts/flow.ts';
 import type { SignalInventory } from '../contracts/signals.ts';
-import { instantAfter } from '../contracts/timestamps.ts';
 import type { FlowContextClient } from '../retrieval/flow-clients.ts';
+import { validateSegmentPlan } from '../retrieval/plan-coverage.ts';
 import { sourceKey } from '../retrieval/source-catalog.ts';
 import { sourceUnits } from '../retrieval/source-units.ts';
-import { validateSegmentPlan } from './segment-policy.ts';
 import { cachedInventory } from './signal-cache.ts';
 export async function analyzeSegmentBatch(
   context: FlowContextClient,
@@ -57,19 +56,8 @@ export async function analyzeSegmentBatch(
       omitted += refs.length;
       continue;
     }
-    const bundle: typeof sources = [];
-    for (const ref of refs) {
-      originalReads++;
-      const s = await context.material(ref.materialId, ref.versionId);
-      if (
-        s.kind !== 'market' ||
-        s.companyIds.length ||
-        sourceKey(s) !== sourceKey(ref) ||
-        instantAfter(s.knownAt, asOf)
-      )
-        throw new NewsAnalysisError(502, 'SEGMENT_SOURCE_SCOPE', 'Segment source is unavailable');
-      bundle.push(s);
-    }
+    originalReads += refs.length;
+    const bundle = await context.publicSources(refs, asOf);
     const candidateSources = [...sources, ...bundle];
     const candidateUnits = sourceUnits(candidateSources);
     if (
