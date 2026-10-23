@@ -50,10 +50,10 @@ export class FlowContextClient {
     );
   }
   async companies(asOf: string) {
-    return z
-      .object({ companies: z.array(companyProfileSchema) })
-      .parse(await this.http.request(`/internal/companies?asOf=${encodeURIComponent(asOf)}`))
-      .companies;
+    return parseResponse(
+      z.object({ companies: z.array(companyProfileSchema) }),
+      await this.http.request(`/internal/companies?asOf=${encodeURIComponent(asOf)}`),
+    ).companies;
   }
   async evidence(companyId: string, asOf: string) {
     return parseResponse(
@@ -64,24 +64,28 @@ export class FlowContextClient {
     );
   }
   async groups(asOf: string) {
-    return z
-      .object({ groups: z.array(z.object({ groupId: z.string() })) })
-      .parse(await this.http.request(`/internal/groups?asOf=${encodeURIComponent(asOf)}`)).groups;
+    return parseResponse(
+      z.object({ groups: z.array(z.object({ groupId: z.string() })) }),
+      await this.http.request(`/internal/groups?asOf=${encodeURIComponent(asOf)}`),
+    ).groups;
   }
   async expand(id: string, asOf: string) {
-    return groupExpansionSchema.parse(
+    return parseResponse(
+      groupExpansionSchema,
       await this.http.request(
         `/internal/groups/${encodeURIComponent(id)}?asOf=${encodeURIComponent(asOf)}`,
       ),
     );
   }
   async roles(asOf: string) {
-    return z
-      .object({ roles: z.array(roleProfileSchema) })
-      .parse(await this.http.request(`/internal/roles?asOf=${encodeURIComponent(asOf)}`)).roles;
+    return parseResponse(
+      z.object({ roles: z.array(roleProfileSchema) }),
+      await this.http.request(`/internal/roles?asOf=${encodeURIComponent(asOf)}`),
+    ).roles;
   }
   async search(query: string, asOf: string, publicOnly = false) {
-    return searchSchema.parse(
+    return parseResponse(
+      searchSchema,
       await this.http.request(
         '/internal/search',
         { query, asOf, limit: 48, publicOnly },
@@ -94,9 +98,10 @@ export class FlowContextClient {
     return this.http.request('/internal/search/sync', {});
   }
   async changes(after: number) {
-    return z
-      .object({ changes: z.array(sourceChangeSchema) })
-      .parse(await this.http.request(`/internal/changes?after=${after}`)).changes;
+    return parseResponse(
+      z.object({ changes: z.array(sourceChangeSchema) }),
+      await this.http.request(`/internal/changes?after=${after}`),
+    ).changes;
   }
 }
 export class FlowJobClient {
@@ -117,20 +122,25 @@ export class FlowJobClient {
     );
   }
   async sourceCursor() {
-    return sourceCursorSchema.parse(await this.http.request('/internal/source-cursor'));
+    return parseResponse(sourceCursorSchema, await this.http.request('/internal/source-cursor'));
   }
   async advanceSourceCursor(cursor: z.infer<typeof sourceCursorSchema>) {
-    return sourceCursorSchema.parse(await this.http.request('/internal/source-cursor', cursor));
+    return parseResponse(
+      sourceCursorSchema,
+      await this.http.request('/internal/source-cursor', cursor),
+    );
   }
   async get(id: string) {
-    return jobSchema.parse(
+    return parseResponse(
+      jobSchema,
       await this.http.request(`/internal/news-jobs/${encodeURIComponent(id)}`),
     );
   }
   async claim(workerId: string) {
-    return jobSchema
-      .nullable()
-      .parse(await this.http.request('/internal/news-jobs/claim', { workerId }));
+    return parseResponse(
+      jobSchema.nullable(),
+      await this.http.request('/internal/news-jobs/claim', { workerId }),
+    );
   }
   async update(
     job: NewsJob,
@@ -138,7 +148,8 @@ export class FlowJobClient {
     status: 'running' | 'partial' | 'completed' | 'failed' = 'running',
     error?: string,
   ) {
-    return jobSchema.parse(
+    return parseResponse(
+      jobSchema,
       await this.http.request(`/internal/news-jobs/${encodeURIComponent(job.request.jobId)}`, {
         workerId: job.workerId,
         version: job.version,

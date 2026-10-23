@@ -55,12 +55,14 @@ export class InsightClient {
       ...(after ? { after } : {}),
       ...(materialId ? { materialId } : {}),
     });
-    return z
-      .object({ companyIds: z.array(z.uuid()), nextCursor: z.string().nullable() })
-      .parse(await this.http.request(`/internal/question-recipients?${query}`));
+    return parseResponse(
+      z.object({ companyIds: z.array(z.uuid()), nextCursor: z.string().nullable() }),
+      await this.http.request(`/internal/question-recipients?${query}`),
+    );
   }
   async react(change: SourceChange, afterQuestion?: string | null) {
-    return reactionPageSchema.parse(
+    return parseResponse(
+      reactionPageSchema,
       await this.http.request('/internal/source-changes', {
         ...change,
         afterQuestion: afterQuestion ?? null,
