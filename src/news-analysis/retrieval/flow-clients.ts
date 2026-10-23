@@ -1,0 +1,192 @@
+import { z } from 'zod';
+import { materialSchema, sourceRefSchema } from '../contracts/analysis.ts';
+import {
+  companyPlanSchema,
+  companyWatchSchema,
+  jobProjectionSchema,
+  sourceJobsSchema,
+} from '../contracts/execution.ts';
+import {
+  type FlowCheckpoint,
+  type FlowRequest,
+  flowRequestSchema,
+  jobSchema,
+  type NewsJob,
+} from '../contracts/flow.ts';
+import type { Relevance } from '../contracts/relevance.ts';
+import {
+  type SourceChange,
+  sourceChangeSchema,
+  sourceCursorSchema,
+} from '../contracts/source-changes.ts';
+import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
+
+const searchSchema = z.object({
+  hits: z.array(
+    z.object({
+      companyId: z.uuid(),
+      sourceRefs: z.array(sourceRefSchema),
+      relatedVersions: z.array(sourceRefSchema).nullable().optional(),
+      score: z.number(),
+      materialId: z.string().nullable(),
+      versionId: z.string().nullable(),
+    }),
+  ),
+  mode: z.string(),
+  reranker: z.string(),
+  exhaustive: z.boolean(),
+  candidatesExamined: z.number(),
+});
+
+export class FlowContextClient {
+  readonly http: ServiceClient;
+  constructor(url: string, secret: string, fetcher = fetch) {
+    this.http = new ServiceClient(url, secret, fetcher);
+  }
+  async material(id: string, version: string) {
+    return parseResponse(
+      materialSchema,
+      await this.http.request(
+        `/internal/material-versions/${encodeURIComponent(id)}/${encodeURIComponent(version)}`,
+      ),
+    );
+  }
+  async admitNews(event: unknown) {
+    return parseResponse(flowRequestSchema, await this.http.request('/internal/news/admit', event));
+  }
+  async news(request: FlowRequest) {
+    return parseResponse(
+      materialSchema,
+      await this.http.request('/internal/news/resolve', {
+        newsMaterialId: request.newsMaterialId,
+        newsVersionId: request.newsVersionId,
+        asOf: request.asOf,
+      }),
+    );
+  }
+  async publicSources(sourceRefs: z.infer<typeof sourceRefSchema>[], asOf: string) {
+    return parseResponse(
+      z.object({ materials: z.array(materialSchema) }),
+      await this.http.request('/internal/news/public-sources', { sourceRefs, asOf }),
+    ).materials;
+  }
+  async search(query: string, asOf: string, publicOnly = false) {
+    return parseResponse(
+      searchSchema,
+      await this.http.request(
+        '/internal/search',
+        { query, asOf, limit: 48, publicOnly },
+        false,
+        120000,
+      ),
+    );
+  }
+  async sync() {
+    return this.http.request('/internal/search/sync', {});
+  }
+  async changes(after: number) {
+    return parseResponse(
+      z.object({ changes: z.array(sourceChangeSchema) }),
+      await this.http.request(`/internal/changes?after=${after}`),
+    ).changes;
+  }
+}
+export class FlowJobClient {
+  readonly http: ServiceClient;
+  constructor(url: string, secret: string, fetcher = fetch) {
+    this.http = new ServiceClient(url, secret, fetcher);
+  }
+  async create(jobId: string, request: FlowRequest) {
+    return parseResponse(
+      jobSchema,
+      await this.http.request('/internal/news-jobs', {
+        jobId,
+        newsMaterialId: request.newsMaterialId,
+        newsVersionId: request.newsVersionId,
+        asOf: request.asOf,
+        parameters: request,
+      }),
+    );
+  }
+  async companyPlan(jobId: string, companyId: string, relevance?: Relevance) {
+    return parseResponse(
+      companyPlanSchema,
+      await this.http.request('/internal/execution/company-plan', { jobId, companyId, relevance }),
+    );
+  }
+  async companyWatch(jobId: string, companyId: string, afterSequence: number) {
+    return parseResponse(
+      companyWatchSchema,
+      await this.http.request('/internal/execution/company-watch', {
+        jobId,
+        companyId,
+        afterSequence,
+      }),
+    );
+  }
+  async sourceJobs(event: SourceChange, afterQuestion: string | null) {
+    return parseResponse(
+      sourceJobsSchema,
+      await this.http.request('/internal/execution/source-jobs', { event, afterQuestion }),
+    );
+  }
+  async projection(jobId: string, segmentCoverageAvailable: boolean, roleViews?: unknown[]) {
+    return parseResponse(
+      jobProjectionSchema,
+      await this.http.request('/internal/projections/job', {
+        jobId,
+        segmentCoverageAvailable,
+        roleViews,
+      }),
+    );
+  }
+  async sourceCursor(source: 'context' | 'company' = 'context') {
+    return parseResponse(
+      sourceCursorSchema,
+      await this.http.request(
+        `/internal/source-cursor${source === 'context' ? '' : '?source=company'}`,
+      ),
+    );
+  }
+  async advanceSourceCursor(
+    cursor: z.infer<typeof sourceCursorSchema>,
+    source: 'context' | 'company' = 'context',
+  ) {
+    return parseResponse(
+      sourceCursorSchema,
+      await this.http.request(
+        `/internal/source-cursor${source === 'context' ? '' : '?source=company'}`,
+        cursor,
+      ),
+    );
+  }
+  async get(id: string) {
+    return parseResponse(
+      jobSchema,
+      await this.http.request(`/internal/news-jobs/${encodeURIComponent(id)}`),
+    );
+  }
+  async claim(workerId: string) {
+    return parseResponse(
+      jobSchema.nullable(),
+      await this.http.request('/internal/news-jobs/claim', { workerId }),
+    );
+  }
+  async update(
+    job: NewsJob,
+    checkpoint: FlowCheckpoint,
+    status: 'running' | 'partial' | 'completed' | 'failed' = 'running',
+    error?: string,
+  ) {
+    return parseResponse(
+      jobSchema,
+      await this.http.request(`/internal/news-jobs/${encodeURIComponent(job.request.jobId)}`, {
+        workerId: job.workerId,
+        version: job.version,
+        status,
+        checkpoint,
+        error: error ?? null,
+      }),
+    );
+  }
+}

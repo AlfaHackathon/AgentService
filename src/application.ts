@@ -6,6 +6,10 @@ import { z } from 'zod';
 import type { ChatRepository } from './chats/repository.ts';
 import { type AppEnv, createChatRoutes, readJson } from './chats/routes.ts';
 import { chatIdSchema, InvalidCursorError } from './chats/schema.ts';
+import {
+  createNewsAnalysisRoutes,
+  type NewsAnalysisRouteOptions,
+} from './news-analysis/transport/http/routes.ts';
 import { readGatewayUserId } from './shared/identity.ts';
 
 type ApplicationOptions = {
@@ -13,6 +17,7 @@ type ApplicationOptions = {
   agentRouter: Hono;
   ready: () => Promise<void>;
   log?: (entry: Record<string, unknown>) => void;
+  newsAnalysis?: NewsAnalysisRouteOptions | undefined;
 };
 
 const userMessage = z.strictObject({
@@ -67,6 +72,7 @@ export function createApplication(options: ApplicationOptions) {
   app.get('/ready', async (c) => {
     try {
       await options.ready();
+      options.newsAnalysis?.ready?.();
       return c.json({ status: 'ready' });
     } catch {
       return c.json({ status: 'unavailable' }, 503);
@@ -132,6 +138,7 @@ export function createApplication(options: ApplicationOptions) {
     }
   });
   app.route('/agents/assistant', options.agentRouter);
+  app.route('/internal/news-analysis', createNewsAnalysisRoutes(options.newsAnalysis));
   return app;
 }
 
