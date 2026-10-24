@@ -272,6 +272,9 @@ describe('Flue news agents with the project provider over HTTP', () => {
                 assessment: {
                   conditions: [
                     {
+                      id: 'formula',
+                      assertion: 'observed',
+                      dependsOn: [],
                       fact: 'Формула не подтверждена',
                       predicate: 'Формула установлена договором',
                       status: 'unknown',
@@ -280,6 +283,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
                   ],
                   unknowns: [
                     {
+                      id: 'missing_formula',
                       fact: 'Неизвестна формула',
                       query: null,
                       scope: 'company',
@@ -599,6 +603,9 @@ describe('Flue news agents with the project provider over HTTP', () => {
             conditions: [
               {
                 fact: 'Revised condition',
+                id: 'revised_condition',
+                assertion: 'observed',
+                dependsOn: [],
                 predicate: 'Original revised',
                 status: 'supported',
                 sourceHandles: ['s2'],
@@ -740,6 +747,9 @@ describe('Flue news agents with the project provider over HTTP', () => {
         conditions: [
           {
             fact: 'Profile flag only',
+            id: 'profile_flag',
+            assertion: 'observed',
+            dependsOn: [],
             predicate: 'Exposure needs confirmation',
             status: 'supported',
             sourceHandles: ['s1'],
@@ -1367,6 +1377,85 @@ describe('Flue news agents with the project provider over HTTP', () => {
       sources,
     );
   }
+
+  it('repairs an unsupported derived result through the real company result tool', async () => {
+    const invalid = {
+      drafts: [
+        {
+          objectHandle: 'o0',
+          question: {
+            mechanism: 'financing_cost',
+            frame: 'event_only',
+            unit: 'qualitative',
+            targetPeriod: 'unknown',
+            baselinePeriod: null,
+            basis: 'qualitative',
+          },
+          assessment: {
+            conditions: [
+              {
+                id: 'identity',
+                assertion: 'observed',
+                dependsOn: [],
+                fact: 'Index identity is not established.',
+                predicate: 'The indexes match.',
+                status: 'unknown',
+                sourceHandles: ['s0'],
+              },
+              {
+                id: 'consequence',
+                assertion: 'derived',
+                dependsOn: ['identity'],
+                fact: 'The rate formula uses the reference index.',
+                predicate: 'Interest cost increases.',
+                status: 'supported',
+                sourceHandles: ['s0'],
+              },
+              {
+                id: 'principal',
+                assertion: 'observed',
+                dependsOn: [],
+                fact: 'Independent principal fact.',
+                predicate: 'Principal exists.',
+                status: 'supported',
+                sourceHandles: ['s0'],
+              },
+            ],
+            unknowns: [],
+          },
+          conclusion: 'The consequence is not established.',
+          status: 'unknown',
+          sourceHandles: ['s0'],
+          impact: {
+            metric: 'risk',
+            amountBasis: 'qualitative',
+            economicObjectId: null,
+            evidenceStatus: 'unknown',
+            importance: 1,
+            urgency: 1,
+            novelty: 1,
+          },
+        },
+      ],
+    };
+    const repaired = structuredClone(invalid);
+    const consequence = repaired.drafts[0]?.assessment.conditions[1];
+    if (!consequence) throw new Error('Missing fixture consequence');
+    consequence.status = 'unknown';
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', repaired);
+    const result = await reasoner.analyze(structuredClone(input));
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain(
+      'A supported derived condition requires supported evidence dependencies.',
+    );
+    expect(result[0]?.assessment?.conditions[1]).toMatchObject({
+      id: 'consequence',
+      assertion: 'derived',
+      dependsOn: ['identity'],
+      status: 'unknown',
+    });
+    expect(result[0]?.assessment?.conditions[2]?.status).toBe('supported');
+  });
 
   it('corrects a text-only relevance stop with a visible signal in the same response', async () => {
     const requests = await toolSequence([

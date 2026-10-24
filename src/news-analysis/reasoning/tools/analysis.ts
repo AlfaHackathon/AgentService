@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { validateEvidenceDependencies } from '../../contracts/evidence-dependencies.ts';
 import { newsPlanSchema } from '../../contracts/flow.ts';
 import { InsightClient } from '../../retrieval/insight-client.ts';
 import { sourceKey } from '../../retrieval/source-catalog.ts';
@@ -38,6 +39,7 @@ export function useCompanyTools(task: AgentTask) {
   useResultTool('submit_news_analysis', schema, async (data) => {
     const drafts = v.parse(schema, data).drafts;
     for (const draft of drafts) {
+      validateEvidenceDependencies(draft.assessment, draft.impact.evidenceStatus);
       for (const condition of draft.assessment.conditions)
         if (
           condition.sourceHandles.some((handle) => !draft.sourceHandles.includes(handle)) ||

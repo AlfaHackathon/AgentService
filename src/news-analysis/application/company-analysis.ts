@@ -194,6 +194,7 @@ export class NewsAnalyzer {
         'INVALID_REASONING_RESULT',
         'Reasoner returned an invalid draft contract',
       );
+    validateReferences(proposed.data.drafts, context);
     const drafts = await insights.prepare(input, proposed.data.drafts, before.stateVersion);
     validateReferences(drafts, context);
     // InsightService commits every revision and completion receipt in one transaction,

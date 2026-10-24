@@ -5,6 +5,7 @@ import { timestampSchema } from './timestamps.ts';
 const identifier = z.string().trim().min(1).max(200);
 const timestamp = timestampSchema;
 const bankProfile = z.string().regex(/^U_\d+$/);
+const evidenceId = z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/);
 const maximumDrafts = 32;
 export const materialTriggerSchema = z.strictObject({
   materialId: identifier,
@@ -42,6 +43,9 @@ export const assessmentSchema = z.strictObject({
   conditions: z
     .array(
       z.strictObject({
+        id: evidenceId.optional(),
+        assertion: z.enum(['observed', 'derived', 'conditional']).optional(),
+        dependsOn: z.array(evidenceId).max(16).optional(),
         fact: z.string().min(1).max(1000),
         predicate: z.string().min(1).max(1000),
         status: z.enum(['supported', 'contradicted', 'unknown']),
@@ -52,6 +56,7 @@ export const assessmentSchema = z.strictObject({
   unknowns: z
     .array(
       z.strictObject({
+        id: evidenceId.optional(),
         fact: z.string().min(1).max(1000),
         query: z.string().min(1).max(2000).nullable(),
         scope: z.enum(['company', 'market']),
