@@ -62,29 +62,36 @@ export function useEvidenceRelevanceTools(task: AgentTask) {
       v.maxLength(8),
     ),
   });
-  useResultTool('assess_evidence_relevance', schema, undefined, (data) => {
-    const model = v.parse(schema, data);
-    if (
-      model.assessments.length !== sources.length ||
-      new Set(model.assessments.map((r) => r.handle)).size !== sources.length
-    )
-      throw new Error('Assess every supplied document exactly once');
-    return {
-      assessments: model.assessments.map(({ handle, ...row }) => {
-        const s = sources[Number(handle.slice(1))];
-        if (!s) throw new Error('Unknown document');
-        if (row.status !== 'unknown' && (!row.quote || !s.text.includes(row.quote)))
-          throw new Error('Quote exact evidence; uncertainty must remain unknown');
-        return {
-          ...row,
-          sourceRef: {
-            materialId: s.materialId,
-            versionId: s.versionId,
-            contentHash: s.contentHash,
-          },
-        };
-      }),
-    };
-  });
+  useResultTool(
+    'assess_evidence_relevance',
+    schema,
+    undefined,
+    (data) => {
+      const model = v.parse(schema, data);
+      if (
+        model.assessments.length !== sources.length ||
+        new Set(model.assessments.map((r) => r.handle)).size !== sources.length
+      )
+        throw new Error('Assess every supplied document exactly once');
+      return {
+        assessments: model.assessments.map(({ handle, ...row }) => {
+          const s = sources[Number(handle.slice(1))];
+          if (!s) throw new Error('Unknown document');
+          if (row.status !== 'unknown' && (!row.quote || !s.text.includes(row.quote)))
+            throw new Error('Quote exact evidence; uncertainty must remain unknown');
+          return {
+            ...row,
+            sourceRef: {
+              materialId: s.materialId,
+              versionId: s.versionId,
+              contentHash: s.contentHash,
+            },
+          };
+        }),
+      };
+    },
+    undefined,
+    2,
+  );
   return;
 }
