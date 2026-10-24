@@ -1,3 +1,5 @@
+import { fork } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -172,10 +174,14 @@ describe('Flue news agents with the project provider over HTTP', () => {
   }
 
   type Call = { name: string; arguments: unknown };
-  async function toolSequence(calls: (Call | Call[] | { text: string })[]) {
+  async function toolSequence(
+    calls: (Call | Call[] | { text: string })[],
+    beforeResponse?: (turn: number) => Promise<void>,
+  ) {
     const requests: unknown[] = [];
     const server = await createHttpService(async (request) => {
       requests.push(await request.json());
+      await beforeResponse?.(requests.length);
       const call = calls[requests.length - 1];
       if (!call) return new Response('Unexpected model turn', { status: 400 });
       const chunk = (delta: unknown, finish_reason: string | null) =>
@@ -207,7 +213,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
         LLM_REASONING: 'false',
       }),
     );
-    return requests;
+    return Object.assign(requests, { serverUrl: server.url });
   }
 
   it.each(['analyze', 'review'] as const)(
@@ -1333,6 +1339,251 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(projection.requests).toHaveLength(1);
     expect(JSON.stringify(planner.requests)).not.toContain('F_TEST');
     expect(JSON.stringify(projection.requests)).not.toContain('Synthetic future tariff');
+  });
+
+  const relevanceDocument = {
+    ...context.news,
+    kind: 'company' as const,
+    materialId: 'own-relevance-fixture',
+    text: 'Synthetic floating-rate borrowing contract.',
+    companyIds: [companyId],
+  };
+  const relevanceResult = {
+    assessments: [
+      {
+        handle: 'd0',
+        status: 'unknown',
+        reason: 'Synthetic exposure remains uncertain',
+        quote: '',
+      },
+    ],
+  };
+  function relevancePhase(sources = [relevanceDocument]) {
+    const relevance = createFlowReasoner().relevance;
+    if (!relevance) throw new Error('Missing relevance phase');
+    return relevance(
+      context.news,
+      { eventSummary: 'Synthetic rate change', queries: [], generalInsights: [] },
+      sources,
+    );
+  }
+
+  it('corrects a text-only relevance stop with a visible signal in the same response', async () => {
+    const requests = await toolSequence([
+      { text: 'Synthetic text-only stop' },
+      { name: 'assess_evidence_relevance', arguments: relevanceResult },
+    ]);
+    expect(await relevancePhase()).toEqual([
+      {
+        status: 'unknown',
+        reason: 'Synthetic exposure remains uncertain',
+        quote: '',
+        sourceRef: {
+          materialId: relevanceDocument.materialId,
+          versionId: relevanceDocument.versionId,
+          contentHash: relevanceDocument.contentHash,
+        },
+      },
+    ]);
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[0])).not.toContain('RESULT_TOOL_CORRECTION');
+    expect(JSON.stringify(requests[1])).toContain('RESULT_TOOL_CORRECTION');
+    expect(JSON.stringify(requests[1])).toContain('Synthetic text-only stop');
+    expect(JSON.stringify(requests[1])).toContain('assess_evidence_relevance');
+  });
+
+  it('exhausts two durable relevance corrections after three text-only turns', async () => {
+    const requests = await toolSequence([
+      { text: 'First stop' },
+      { text: 'Second stop' },
+      { text: 'Third stop' },
+    ]);
+    await expect(relevancePhase()).rejects.toMatchObject({
+      status: 502,
+      code: 'FLOW_MODEL_FORMAT',
+    });
+    expect(requests).toHaveLength(3);
+    expect(JSON.stringify(requests[1])).toContain('Correction 1/2');
+    expect(JSON.stringify(requests[2])).toContain('Correction 2/2');
+  });
+
+  it.each([
+    { name: 'wrong_result_tool', arguments: relevanceResult },
+    {
+      name: 'assess_evidence_relevance',
+      arguments: {
+        assessments: [
+          { handle: 'd0', status: 'related', reason: 'Synthetic', quote: 'Invented quote' },
+        ],
+      },
+    },
+    {
+      name: 'assess_evidence_relevance',
+      arguments: {
+        assessments: [{ handle: 'd0', status: 'invalid', reason: 'Synthetic', quote: '' }],
+      },
+    },
+  ])('does not accept wrong or invalid relevance tool results: $name', async (invalid) => {
+    const requests = await toolSequence([
+      invalid,
+      { text: 'Stop after rejected tool' },
+      { text: 'Still no result' },
+      { text: 'Final stop' },
+    ]);
+    await expect(relevancePhase()).rejects.toMatchObject({
+      status: 502,
+      code: 'FLOW_MODEL_FORMAT',
+    });
+    expect(requests).toHaveLength(4);
+  });
+
+  it('rejects duplicate successful relevance results without corrective continuation', async () => {
+    const result = { name: 'assess_evidence_relevance', arguments: relevanceResult };
+    const requests = await toolSequence([[result, result]]);
+    await expect(relevancePhase()).rejects.toMatchObject({
+      status: 502,
+      code: 'FLOW_MODEL_FORMAT',
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it('accepts an explicitly empty relevance result only for an empty evidence catalog', async () => {
+    const requests = await toolSequence([
+      { name: 'assess_evidence_relevance', arguments: { assessments: [] } },
+    ]);
+    expect(await relevancePhase([])).toEqual([]);
+    expect(requests).toHaveLength(1);
+  });
+
+  it('does not reset the original relevance deadline for a semantic correction', async () => {
+    const requests = await toolSequence([
+      { text: 'Synthetic text stop before correction' },
+      { name: 'assess_evidence_relevance', arguments: relevanceResult },
+    ]);
+    const deadlines = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      await relevancePhase();
+      expect(requests).toHaveLength(2);
+      expect(deadlines.mock.calls.filter(([ms]) => ms === 180000)).toHaveLength(1);
+    } finally {
+      deadlines.mockRestore();
+    }
+  });
+
+  it('retains the durable relevance checkpoint and fails closed when an interrupted response resumes empty', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'relevance-replay-'));
+    const checkpoint = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const requests = await toolSequence(
+      [
+        { text: 'Initial stop' },
+        { text: 'Interrupted turn' },
+        { text: 'Resumed stop' },
+        { text: 'Final stop' },
+      ],
+      async (turn) => {
+        if (turn === 2) {
+          checkpoint.resolve();
+          await release.promise;
+        }
+      },
+    );
+    const worker = () => {
+      const child = fork(new URL('./helpers/relevance-replay-worker.mjs', import.meta.url), {
+        env: {
+          ...process.env,
+          NODE_OPTIONS: '--max-old-space-size=256',
+          LLM_BASE_URL: `${requests.serverUrl}/v1`,
+          LLM_API_KEY: 'native-test-key',
+          LLM_MODEL: 'test-model',
+        },
+        stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+      });
+      let diagnostic = '';
+      child.stderr?.on('data', (data) => {
+        diagnostic += String(data);
+      });
+      return Object.assign(child, { diagnostic: () => diagnostic });
+    };
+    const message = (child: ReturnType<typeof worker>) =>
+      Promise.race([
+        once(child, 'message').then(([value]) => value),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Replay IPC timed out; requests=${requests.length}: ${child.diagnostic()}`,
+                ),
+              ),
+            5000,
+          ).unref();
+        }),
+        once(child, 'exit').then(() => {
+          throw new Error(`Replay worker exited: ${child.diagnostic()}`);
+        }),
+      ]);
+    const task = {
+      evidenceSources: [relevanceDocument],
+      instructions: 'Assess the one synthetic original using the required result tool.',
+      objectHandles: [],
+      sourceHandles: [],
+    };
+    const first = worker();
+    let second: ReturnType<typeof worker> | undefined;
+    try {
+      expect(await message(first)).toEqual({ type: 'ready' });
+      first.send({ dbPath: join(directory, 'runtime.db'), task });
+      const admission = z
+        .object({ type: z.literal('admitted'), receipt: z.unknown() })
+        .parse(await message(first));
+      await Promise.race([
+        checkpoint.promise,
+        message(first).then((value) => {
+          throw new Error(
+            `Replay worker stopped before checkpoint: ${JSON.stringify(value)}; ${first.diagnostic()}`,
+          );
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Replay checkpoint not reached; requests=${requests.length}; ${first.diagnostic()}`,
+                ),
+              ),
+            5000,
+          ).unref();
+        }),
+      ]);
+      const exited = once(first, 'exit');
+      first.kill('SIGKILL');
+      await exited;
+      release.resolve();
+      second = worker();
+      expect(await message(second)).toEqual({ type: 'ready' });
+      second.send({ dbPath: join(directory, 'runtime.db'), task, receipt: admission.receipt });
+      const outcome = await message(second);
+      expect(outcome, `requests=${requests.length}; ${second.diagnostic()}`).toEqual({
+        type: 'failed',
+        reason: 'missing_result',
+        priorCorrections: 1,
+        checkpointAtomic: true,
+      });
+      expect(requests).toHaveLength(2);
+      expect(JSON.stringify(requests[1])).toContain('Correction 1/2');
+    } finally {
+      release.resolve();
+      for (const child of [first, second]) {
+        if (child && child.exitCode === null && child.signalCode === null) {
+          const exited = once(child, 'exit');
+          child.kill('SIGKILL');
+          await exited;
+        }
+      }
+      expect(directory.startsWith(join(tmpdir(), 'relevance-replay-'))).toBe(true);
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('repairs fabricated relevance evidence and preserves unknown in the native routing phase', async () => {
