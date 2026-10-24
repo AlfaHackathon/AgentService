@@ -23,6 +23,8 @@ describe('PostgreSQL chat catalogue', () => {
 
   it('isolates owners for reads, writes and listing', async () => {
     const chat = await chats.create('alice', 'Первый');
+    expect(await chats.owner(chat.id)).toBe('alice');
+    expect(await chats.owner('00000000-0000-4000-8000-000000000000')).toBeNull();
     await chats.create('bob', 'Другой');
     expect(await chats.get(chat.id, 'bob')).toBeNull();
     expect(await chats.update(chat.id, 'bob', { title: 'stolen' })).toBeNull();

@@ -9,6 +9,7 @@ const queries = {
   list: readSql('chats/list.sql'),
   update: readSql('chats/update.sql'),
   touch: readSql('chats/touch.sql'),
+  owner: readSql('chats/owner.sql'),
 };
 
 type ChatRow = {
@@ -43,6 +44,12 @@ function mapChat(row: ChatRow): Chat {
 
 export class ChatRepository {
   constructor(private readonly sql: Sql) {}
+
+  // Runtime route identity, never a message uid or a model-supplied owner.
+  async owner(id: string): Promise<string | null> {
+    const { rows } = await this.sql.query<{ owner_user_id: string }>(queries.owner, [id]);
+    return rows[0]?.owner_user_id ?? null;
+  }
 
   async create(ownerId: string, title = 'Новый чат'): Promise<Chat> {
     const { rows } = await this.sql.query<ChatRow>(queries.create, [randomUUID(), ownerId, title]);

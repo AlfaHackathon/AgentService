@@ -6,9 +6,16 @@ const requestSchema = z.object({
   model: z.string(),
   stream: z.literal(true),
   messages: z.array(z.object({ role: z.string(), content: z.unknown() })),
+  tools: z
+    .array(
+      z.object({
+        function: z.object({ name: z.string(), parameters: z.record(z.string(), z.unknown()) }),
+      }),
+    )
+    .optional(),
 });
 
-export async function createLlmServer() {
+export async function createLlmServer(tool?: { name: string; arguments: Record<string, unknown> }) {
   const requests: z.infer<typeof requestSchema>[] = [];
   const pending = new Set<ServerResponse>();
   let allowSlowResponses = false;
@@ -56,6 +63,30 @@ export async function createLlmServer() {
           })}\n\n`,
         );
       write({ role: 'assistant', content: '' });
+      if (tool) {
+        if (body.messages.at(-1)?.role !== 'tool') {
+          write(
+            {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `tool-${requests.length}`,
+                  type: 'function',
+                  function: { name: tool.name, arguments: JSON.stringify(tool.arguments) },
+                },
+              ],
+            },
+            'tool_calls',
+          );
+        } else {
+          write(
+            { content: `Tool result: ${JSON.stringify(body.messages.at(-1)?.content)}` },
+            'stop',
+          );
+        }
+        res.end('data: [DONE]\n\n');
+        return;
+      }
       if (last.startsWith('slow') && !allowSlowResponses) {
         pending.add(res);
         res.on('close', () => pending.delete(res));

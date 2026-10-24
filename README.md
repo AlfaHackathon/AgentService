@@ -12,6 +12,34 @@ AgentService выполняет Flue-рассуждение, вызовы инс
 Определения агентов подключают наборы из `src/news-analysis/reasoning/tools/`;
 регистрация инструментов находится в этих модулях, отдельно от определений агентов.
 
+Разговорный `ClientAssistantAgent` отдельно подключает `src/client-assistant/tools.ts`:
+`assistant_company_profile`, `assistant_search_context`, `assistant_read_original`,
+`assistant_news_insights`, `assistant_analyze_news`. Tools вызывают существующие
+Company/Context/Insight API через типизированные локальные клиенты. Публичный chat HTTP/SSE
+контракт не меняется; новые backend endpoints и shared-package API не добавлены.
+
+Runtime `AgentProps.id` связывается с владельцем в каталоге chats; `message.uid` не является
+пользовательской identity. Перед каждым tool проверяется текущий membership через
+CompanyService `/internal/companies/by-user/{ownerId}`. Company/time/bank profile задаёт host,
+не модель; отсутствие владельца, membership или конфигурации возвращает явный отказ.
+Группы и ролевые grants не расширяют этот scope. Оригинал читается только по handle из scoped
+поиска с повторной проверкой company/hash/version/knownAt. Внешний web search не подключён.
+
+Ручной анализ запускается только по явному запросу пользователя для своей компании и существующей
+публичной версии новости, через прежний single-company `NewsAnalyzer`. Пересмотр по новому
+основанию использует проверенный `triggerSourceHandle`; канонические drafts разговорная модель
+не пишет. Сохранённый receipt переиспользуется, а не выдаётся за новый пересмотр. Результат tool —
+краткая квитанция; текущие эффекты читаются отдельно с company scope, без NewsFlow checkpoint,
+общего job result или ролевых проекций. При потере ответа проверяется receipt, автоматического
+повтора анализа с неопределённым исходом нет.
+
+На пользовательское сообщение: до 8 tools и одного нового анализа, 24000 символов на ответ и
+60000 суммарно. Поиск возвращает до 6 hits и 24 handles; пропущенные refs отмечаются явно.
+Оригиналы не обрезаются: слишком большой ответ возвращает `OUTPUT_BUDGET`. Effects ограничены
+8 записями с `hasMore`/`nextOffset`; параметры offset/limit позволяют продолжить чтение или
+уменьшить страницу. Неполная выдача не доказывает нулевое влияние. Сообщения upstream errors
+не передаются модели дословно. Эти ограничения и ошибки не отключают обычный чат.
+
 ## Новостное состояние и продолжение
 
 Native result содержит `question={mechanism,frame,unit,targetPeriod,baselinePeriod,basis}` и

@@ -13,9 +13,12 @@ import { InsightAgent } from '../src/agents/insight.ts';
 import { ScenarioAgent } from '../src/agents/scenario.ts';
 import { createApplication } from '../src/application.ts';
 import { ChatRepository } from '../src/chats/repository.ts';
+import * as assistantConfiguration from '../src/client-assistant/configuration.ts';
+import { AssistantServiceClients } from '../src/client-assistant/service-clients.ts';
 import { createModelProvider } from '../src/config/model.ts';
+import { ServiceClient } from '../src/news-analysis/transport/http/service-client.ts';
 import { createTestDatabase } from './helpers/database.ts';
-import { aliceUserId, gatewayHeaders } from './helpers/identity.ts';
+import { aliceUserId, bobUserId, gatewayHeaders } from './helpers/identity.ts';
 import { createLlmServer } from './helpers/llm-server.ts';
 
 const setChatTimestampSql = readFileSync(
@@ -64,6 +67,7 @@ describe('real Flue + PostgreSQL adapter + SDK + HTTP model', () => {
     await runtime?.stop();
     await model?.close();
     await db?.close();
+    vi.restoreAllMocks();
   });
 
   function client(id: string) {
@@ -109,9 +113,81 @@ describe('real Flue + PostgreSQL adapter + SDK + HTTP model', () => {
     expect(other.text).toContain('gamma');
     expect(other.text).not.toContain('alpha');
     expect(model.requests).toHaveLength(3);
+    expect(model.requests[0]?.tools?.map((tool) => tool.function.name)).toEqual(
+      expect.arrayContaining([
+        'assistant_company_profile',
+        'assistant_search_context',
+        'assistant_read_original',
+        'assistant_news_insights',
+        'assistant_analyze_news',
+      ]),
+    );
+    for (const tool of model.requests[0]?.tools ?? []) {
+      if (!tool.function.name.startsWith('assistant_')) continue;
+      expect(tool.function.parameters.additionalProperties).toBe(false);
+      expect(JSON.stringify(tool.function.parameters)).not.toMatch(
+        /"(companyId|userId|ownerId|secret|asOf)"/,
+      );
+    }
     const reconnected = client(a.url.split('/').at(-1) ?? '');
     expect((await reconnected.history()).messages.length).toBeGreaterThanOrEqual(4);
     expect((await reconnected.read(receipt.submissionId)).text).toContain('alpha');
+  });
+
+  it('executes a service tool through native admission/SSE using the catalogue owner and preserving native uid conditions', async () => {
+    await runtime.stop();
+    await model.close();
+    model = await createLlmServer({ name: 'assistant_company_profile', arguments: {} });
+    runtime = await boot();
+    const companyId = '11111111-1111-4111-8111-111111111111';
+    const membershipOwners: string[] = [];
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes('/by-user/')) {
+        membershipOwners.push(url.pathname.split('/').at(-1) ?? '');
+        return Response.json({ id: companyId, name: 'Own company', bankProfileId: null });
+      }
+      return Response.json({
+        companyId,
+        name: 'Own company',
+        revisionId: 'p1',
+        bankProfileId: null,
+        description: 'Verified fixture profile',
+        industryCodes: [],
+        exposures: [],
+        knownAt: '2026-10-20T00:00:00Z',
+        sourceRefs: [],
+      });
+    };
+    const http = new ServiceClient('http://fixture.test', 'fixture-secret', fetcher);
+    vi.spyOn(assistantConfiguration, 'createAssistantDependencies').mockResolvedValue({
+      owner: (id) => chats.owner(id),
+      clients: new AssistantServiceClients(http, http, http),
+      analyzer: {
+        analyze: async () => {
+          throw new Error('Reading must not start analysis');
+        },
+      },
+    });
+    const chat = await chats.create(aliceUserId);
+    const response = await app.request(`/agents/assistant/${chat.id}`, {
+      method: 'POST',
+      headers: { ...gatewayHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'user', body: 'Read my profile', uid: bobUserId }),
+    });
+    expect(response.status).toBe(404);
+    expect(membershipOwners).toEqual([]);
+    const a = client(chat.id);
+    const receipt = await a.send({ message: { kind: 'user', body: 'Read my profile' } });
+    expect(receipt.uid).not.toBe(aliceUserId);
+    expect(receipt.uid).not.toBe(bobUserId);
+    expect((await a.read(receipt)).text).toContain('Own company');
+    const next = await a.send({
+      message: { kind: 'user', body: 'Read it again' },
+      uid: receipt.uid,
+    });
+    expect((await a.read(next)).text).toContain('Own company');
+    expect(membershipOwners).toEqual([aliceUserId, aliceUserId]);
   });
 
   it('keeps a deduplicated delivery from changing chat activity or paginated order', async () => {
