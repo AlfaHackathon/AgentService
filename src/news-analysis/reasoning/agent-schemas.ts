@@ -3,6 +3,7 @@ import { mechanisms, periodPattern } from '../contracts/questions.ts';
 
 const text = (maximum: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(maximum));
 const score = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(5));
+const evidenceId = v.pipe(v.string(), v.regex(/^[a-z][a-z0-9_-]{0,63}$/));
 const sourceRef = v.strictObject({
   materialId: text(200),
   versionId: text(200),
@@ -143,6 +144,9 @@ export function companyResultSchema(
             conditions: v.pipe(
               v.array(
                 v.strictObject({
+                  id: evidenceId,
+                  assertion: v.picklist(['observed', 'derived', 'conditional']),
+                  dependsOn: v.pipe(v.array(evidenceId), v.maxLength(16)),
                   fact: text(1000),
                   predicate: text(1000),
                   status: v.picklist(['supported', 'contradicted', 'unknown']),
@@ -154,6 +158,7 @@ export function companyResultSchema(
             unknowns: v.pipe(
               v.array(
                 v.strictObject({
+                  id: evidenceId,
                   fact: text(1000),
                   query: v.nullable(text(2000)),
                   scope: v.picklist(['company', 'market']),

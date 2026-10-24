@@ -1,5 +1,6 @@
 import type { EffectDraft } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
+import { validateEvidenceDependencies } from '../contracts/evidence-dependencies.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 export function sourceKey(source: { materialId: string; versionId: string; contentHash: string }) {
   return JSON.stringify([source.materialId, source.versionId, source.contentHash]);
@@ -12,6 +13,7 @@ export function validateReferences(
   const available = new Set([context.news, ...context.materials].map(sourceKey));
   const currentNews = sourceKey(context.news);
   for (const draft of drafts) {
+    validateEvidenceDependencies(draft.assessment, draft.impact?.evidenceStatus);
     if (
       draft.assessment?.applicability?.sourceRefs.some(
         (r) => !draft.sourceRefs.some((s) => sourceKey(s) === sourceKey(r)),

@@ -342,6 +342,56 @@ describe('internal news analysis through actual HTTP clients', () => {
     expect(state.writes).toHaveLength(1);
   });
 
+  it.each(['proposal', 'final'])(
+    'rejects unsupported %s dependencies before prepare or save',
+    async (phase) => {
+      const state = await setup();
+      const prepare = vi.spyOn(state.analyzer.dependencies.insights, 'prepare');
+      const save = vi.spyOn(state.analyzer.dependencies.insights, 'saveAnalysis');
+      const valid = { ...draft(bundle('v1')), calculation: undefined };
+      const invalid: EffectDraft = {
+        ...valid,
+        status: 'unknown',
+        assessment: {
+          conditions: [
+            {
+              id: 'identity',
+              assertion: 'observed',
+              dependsOn: [],
+              fact: 'Reference identity unconfirmed.',
+              predicate: 'The indexes match.',
+              status: 'unknown',
+              sourceRefs: valid.sourceRefs,
+            },
+            {
+              id: 'consequence',
+              assertion: 'derived',
+              dependsOn: ['identity'],
+              fact: 'Contract formula requires matching index.',
+              predicate: 'Expense increases.',
+              status: 'supported',
+              sourceRefs: valid.sourceRefs,
+            },
+          ],
+          unknowns: [],
+        },
+      };
+      const review = vi.fn(async () => [invalid]);
+      const analyzer = new NewsAnalyzer({
+        ...state.analyzer.dependencies,
+        reasoner: { analyze: async () => [phase === 'proposal' ? invalid : valid], review },
+      });
+      await expect(analyzer.analyze(request)).rejects.toMatchObject({
+        status: 422,
+        code: 'UNSUPPORTED_EVIDENCE_DEPENDENCY',
+      });
+      expect(prepare).not.toHaveBeenCalled();
+      expect(save).not.toHaveBeenCalled();
+      expect(state.writes).toHaveLength(0);
+      expect(state.receipts.size).toBe(0);
+    },
+  );
+
   it('still rejects duplicate final identities without a canonical write', async () => {
     const state = await setup();
     const analyzer = new NewsAnalyzer({
