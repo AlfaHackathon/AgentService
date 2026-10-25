@@ -32,6 +32,11 @@ import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts'
 import type { SourceUnit } from '../src/news-analysis/retrieval/source-units.ts';
 import { sourceUnits } from '../src/news-analysis/retrieval/source-units.ts';
 import { createHttpService } from './helpers/http-service.ts';
+import {
+  newLoanQuestionResult,
+  questionBindingReplay,
+  questionBindingScope,
+} from './helpers/question-binding-replay.ts';
 
 const companyId = '11111111-1111-4111-8111-111111111111';
 const time = '2026-10-22T08:00:00Z';
@@ -794,6 +799,53 @@ describe('Flue news agents with the project provider over HTTP', () => {
         ),
       );
   }
+
+  async function runQuestionBindingReplay() {
+    const scope = questionBindingScope();
+    return runNewsAgent(
+      CompanyConsequencesAgent,
+      'Synthetic captured question binding regression',
+      {
+        instructions: 'Submit one grounded company result; correct a binding error at most once.',
+        companyScope: scope,
+        questionHandles: scope.questions.map((q) => q.handle),
+      },
+      { environment: {}, phase: 'company-proposal', errorCode: 'INVALID_REASONING_RESULT' },
+    );
+  }
+
+  it('returns a structured binding correction and accepts a new question for the loan', async () => {
+    const corrected = newLoanQuestionResult();
+    const { requests } = await adapter(
+      questionBindingReplay.rawResult,
+      true,
+      'submit_news_analysis',
+      corrected,
+    );
+    await expect(runQuestionBindingReplay()).resolves.toEqual(corrected);
+    expect(requests).toHaveLength(2);
+    const correction = JSON.stringify(requests[1]);
+    expect(correction).toContain('QUESTION_OBJECT_BINDING');
+    expect(correction).toContain('httpStatus');
+    expect(correction).toContain('422');
+    expect(correction).toContain('maximumCorrections');
+    expect(correction).toContain('inline question identity');
+    expect(correction).toContain('history');
+  });
+
+  it('stops after two mismatched question bindings without another phase retry', async () => {
+    const { requests } = await adapter(
+      questionBindingReplay.rawResult,
+      true,
+      'submit_news_analysis',
+      questionBindingReplay.rawResult,
+    );
+    await expect(runQuestionBindingReplay()).rejects.toMatchObject({
+      code: 'INVALID_REASONING_RESULT',
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('QUESTION_OBJECT_BINDING');
+  });
 
   it('corrects the real two-loan collision once without losing either obligation', async () => {
     const replay = await duplicateLoanReplay();
