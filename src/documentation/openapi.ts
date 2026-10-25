@@ -139,6 +139,11 @@ export function agentOpenApi() {
               },
               'Personal only.',
             ),
+            query(
+              'category',
+              { type: 'string', enum: ['risk', 'opportunity', 'event'] },
+              'Both kinds. Only saved categories match; legacy null is not inferred.',
+            ),
             query('newsMaterialId', { type: 'string', maxLength: 200 }),
             query(
               'minImportance',

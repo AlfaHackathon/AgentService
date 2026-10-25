@@ -163,6 +163,7 @@ it('does not let a used sibling signal hide an omitted or falsely used fact', ()
     segmentCoverage: [{ segmentKey: 'activity:45.11', reason: 'Vehicle retail' }],
     generalInsights: [
       {
+        category: null,
         title: 'Demand',
         conclusion: 'Demand rose in May; company volumes unknown',
         mechanism: 'demand',

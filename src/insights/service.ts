@@ -64,6 +64,7 @@ function safeUrl(value: string | null | undefined) {
 function publicRevision(revision: StoredRevision) {
   const { impact, companyImportance } = revision;
   return parse(publicRevisionSchema, {
+    category: revision.category ?? null,
     publicationClass: revision.publicationClass,
     trigger: revision.trigger,
     assessment: revision.assessment,
@@ -245,7 +246,18 @@ export class InsightReadService {
       textCompleteness: item.textCompleteness,
       companyStatus: item.companyStatus,
       requiresReassessment: null,
-      insight: item.insight,
+      insight: {
+        category: item.insight.category ?? null,
+        signalIds: item.insight.signalIds,
+        quality: item.insight.quality,
+        title: item.insight.title,
+        conclusion: item.insight.conclusion,
+        mechanism: item.insight.mechanism,
+        applicability: item.insight.applicability,
+        exclusions: item.insight.exclusions,
+        unknowns: item.insight.unknowns,
+        sourceRefs: item.insight.sourceRefs,
+      },
       sources: sources.map((s) => this.metadata(s)),
       ...unavailableIndicators('general_not_company_calculation'),
     });

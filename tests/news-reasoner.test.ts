@@ -261,6 +261,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
           arguments: {
             drafts: [
               {
+                category: null,
                 objectHandle: 'o2',
                 question: {
                   mechanism: 'financing_cost',
@@ -483,6 +484,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     const { reasoner, requests } = await adapter({
       drafts: [
         {
+          category: null,
           objectHandle: 'o1',
           assessment: {
             conditions: [],
@@ -618,6 +620,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     const { reasoner, requests } = await adapter({
       drafts: [
         {
+          category: null,
           objectHandle: 'o1',
           question: 'q0',
           conclusion: 'Revised original supports this condition.',
@@ -674,6 +677,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
 
   it('keeps financing and rent-indexation unknowns as separate stable questions', async () => {
     const risk = {
+      category: null,
       objectHandle: 'o0',
       assessment: { conditions: [], unknowns: [] },
       question: {
@@ -727,6 +731,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     };
     const groundedInput = { ...input, context: { ...context, materials: [own] } };
     const amount = {
+      category: null,
       objectHandle: 'o0',
       assessment: {
         conditions: [],
@@ -852,6 +857,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       contentHash: 'b'.repeat(64),
     };
     const draft = {
+      category: null,
       objectHandle: 'o0',
       question: {
         mechanism: 'financing_cost',
@@ -942,6 +948,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       contentHash: 'b'.repeat(64),
     };
     const draft = {
+      category: null,
       objectHandle: 'o0',
       question: {
         mechanism: 'financing_cost',
@@ -1080,6 +1087,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     vi.stubEnv('CONTEXT_SERVICE_URL', 'http://unused-context.test');
     vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
     const draft = {
+      category: null,
       objectHandle: 'o0',
       question: {
         mechanism: 'demand',
@@ -1151,6 +1159,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       contentHash: s.contentHash,
     });
     const insight = {
+      category: null,
       title: 'Conditional financing risk',
       conclusion: 'Exposure remains unknown',
       mechanism: 'Financing conditions',
@@ -1187,6 +1196,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       contentHash: s.contentHash,
     });
     const insight = {
+      category: null,
       title: 'Fixture',
       conclusion: 'Conditional fixture',
       mechanism: 'demand',
@@ -1509,6 +1519,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     return {
       drafts: [
         {
+          category: null,
           objectHandle: 'o0',
           question: {
             mechanism: 'financing_cost',
@@ -1679,6 +1690,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     const invalid = {
       drafts: [
         {
+          category: null,
           objectHandle: 'o0',
           question: {
             mechanism: 'financing_cost',
@@ -2037,6 +2049,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       contentHash: s.contentHash,
     });
     const insight = {
+      category: null,
       title: 'Fixture',
       conclusion: 'Conditional',
       mechanism: 'demand',

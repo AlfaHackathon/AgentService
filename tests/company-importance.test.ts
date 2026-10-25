@@ -57,6 +57,7 @@ const context = {
 const native = (score: number | null, evidenceSourceHandles = ['s1']) => ({
   drafts: [
     {
+      category: null,
       objectHandle: 'o0',
       assessment: { conditions: [], unknowns: [] },
       question: {
@@ -215,3 +216,16 @@ it('exposes nullable 1..5 bounds and rationale in the schema used by OpenAPI', (
   expect(JSON.stringify(schema)).toContain('"maximum":5');
   expect(schema.required).toEqual(expect.arrayContaining(['score', 'rationale', 'evidenceRefs']));
 });
+
+it.each(['risk', 'opportunity', 'event', null] as const)(
+  'preserves explicit category %s through host resolution without deriving it from the impact metric',
+  (category) => {
+    const input = native(null, []);
+    const raw = { drafts: input.drafts.map((draft) => ({ ...draft, category })) };
+    expect(resolveCompanyResult(raw, scope)[0]).toMatchObject({
+      category,
+      status: 'unknown',
+      impact: { metric: 'other', importance: 0 },
+    });
+  },
+);

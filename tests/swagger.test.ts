@@ -92,3 +92,17 @@ describe('opt-in Swagger/OpenAPI', () => {
       expect((await app.request(`/agent-service/swagger/${path}`)).status).toBe(404);
   });
 });
+
+it('documents the category filter for both kinds and nullable categories in public DTOs', () => {
+  const doc = agentOpenApi();
+  expect(doc.paths['/insights'].get.parameters).toContainEqual(
+    expect.objectContaining({
+      name: 'category',
+      in: 'query',
+      schema: { type: 'string', enum: ['risk', 'opportunity', 'event'] },
+    }),
+  );
+  const json = JSON.stringify(doc.components.schemas);
+  expect(json).toContain('"category"');
+  expect(json).toContain('"event"');
+});

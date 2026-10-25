@@ -6,6 +6,7 @@ import {
   responseCalculationSchema,
   sourceRefSchema,
 } from '../news-analysis/contracts/analysis.ts';
+import { insightCategorySchema } from '../news-analysis/contracts/category.ts';
 import { newsPlanSchema } from '../news-analysis/contracts/flow.ts';
 import { mechanisms } from '../news-analysis/contracts/questions.ts';
 import { timestampSchema } from '../news-analysis/contracts/timestamps.ts';
@@ -15,6 +16,7 @@ export const insightKindSchema = z.enum(['personal', 'general']);
 export const feedQuerySchema = z
   .strictObject({
     kind: insightKindSchema.default('personal'),
+    category: insightCategorySchema.optional(),
     limit: z.coerce.number().int().min(1).max(20).default(5),
     cursor: z.string().max(2048).optional(),
     status: z.string().min(1).max(100).optional(),
@@ -104,6 +106,7 @@ export const publicRevisionSchema = storedRevisionSchema
     createdAt: true,
   })
   .extend({
+    category: insightCategorySchema.nullable(),
     companyImportance: companyImportanceSchema.nullable(),
     impact: publicImpact.nullable(),
   });
@@ -162,6 +165,19 @@ export const personalCardSchema = z.object({
   sources: z.array(sourceMetadataSchema).max(64),
   ...indicatorFields,
 });
+export const publicGeneralInsightSchema = newsPlanSchema.shape.generalInsights.element
+  .pick({
+    signalIds: true,
+    quality: true,
+    title: true,
+    conclusion: true,
+    mechanism: true,
+    applicability: true,
+    exclusions: true,
+    unknowns: true,
+    sourceRefs: true,
+  })
+  .extend({ category: insightCategorySchema.nullable() });
 export const generalCardSchema = z.object({
   kind: z.literal('general'),
   id,
@@ -177,7 +193,7 @@ export const generalCardSchema = z.object({
     .describe(
       'General job snapshots do not have a current invalidation assessment; null means unknown, not fresh.',
     ),
-  insight: newsPlanSchema.shape.generalInsights.element,
+  insight: publicGeneralInsightSchema,
   sources: z.array(sourceMetadataSchema).max(32),
   ...indicatorFields,
 });

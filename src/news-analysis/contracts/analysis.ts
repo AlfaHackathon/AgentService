@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { insightCategorySchema } from './category.ts';
 import { mechanisms, questionSchema } from './questions.ts';
 import { timestampSchema } from './timestamps.ts';
 
@@ -194,6 +195,7 @@ export const companyImportanceSchema = z
   });
 
 export const draftSchema = z.strictObject({
+  category: insightCategorySchema.nullable().optional(),
   companyImportance: companyImportanceSchema.optional(),
   question: questionSchema.optional(),
   assessment: assessmentSchema.optional(),
@@ -282,6 +284,7 @@ export const contextBundleSchema = z.object({
 export type ContextBundle = z.infer<typeof contextBundleSchema>;
 
 const revisionSchema = z.object({
+  category: insightCategorySchema.nullable().optional(),
   companyImportance: companyImportanceSchema.nullable().optional(),
   publicationClass: z
     .enum(['consequence', 'scenario', 'missing_data', 'unaffected', 'review'])

@@ -207,6 +207,10 @@ describe('public insight reads through mounted gateway identity boundary', () =>
     '__proto__=other',
     'constructor=other',
     'mechanism=other',
+    'category=unknown',
+    'category=null',
+    'category=Risk',
+    'category=risk&category=event',
   ])('rejects unsupported input %s before service reads', async (query) => {
     const f = fixture();
     expect((await f.request(`/insights?${query}`)).status).toBe(400);
@@ -223,6 +227,7 @@ describe('public insight reads through mounted gateway identity boundary', () =>
     expect(f.dependencies.read).toHaveBeenCalledWith(
       `/internal/read/companies/${company}/personal?limit=5`,
     );
+    expect(card.currentRevision.category).toBeNull();
     expect(card.currentRevision.companyImportance?.score).toBe(4);
     expect(card.currentRevision.companyImportance?.rationale).toContain('exposure');
     expect(card.sources[0]?.provenance).toMatchObject({
@@ -267,6 +272,51 @@ describe('public insight reads through mounted gateway identity boundary', () =>
     expect((await f.request('/insights/personal/question-1')).status).toBe(403);
     expect(f.dependencies.read).toHaveBeenCalledTimes(1);
   });
+  it.each(['risk', 'opportunity', 'event'] as const)(
+    'returns saved category %s in personal feed, detail and history independently of status and importance',
+    async (category) => {
+      const f = fixture();
+      f.item.currentRevision.category = category;
+      for (const path of ['/insights', '/insights/personal/question-1']) {
+        const response = await f.request(path);
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        expect((body.items?.[0] ?? body).currentRevision).toMatchObject({
+          category,
+          status: 'forecast',
+          companyImportance: { score: 4 },
+        });
+      }
+      const history = await (await f.request('/insights/personal/question-1/history')).json();
+      expect(history.items[0].revision.category).toBe(category);
+      await f.request(`/insights?category=${category}&limit=1`);
+      expect(f.dependencies.read).toHaveBeenLastCalledWith(
+        `/internal/read/companies/${company}/personal?limit=1&category=${category}`,
+      );
+    },
+  );
+  it.each(['risk', 'opportunity', 'event', null] as const)(
+    'returns saved general category %s and forwards category filters',
+    async (category) => {
+      const f = fixture();
+      const g = general();
+      const item = { ...g, insight: { ...g.insight, category } };
+      f.dependencies.read.mockImplementation(async (path) =>
+        path.includes('?') ? { companyId: company, items: [item], nextCursor: null } : item,
+      );
+      const response = await f.request(
+        `/insights?kind=general${category ? `&category=${category}` : ''}`,
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).items[0].insight.category).toBe(category);
+      expect(f.dependencies.read).toHaveBeenLastCalledWith(
+        `/internal/read/companies/${company}/general?limit=5${category ? `&category=${category}` : ''}`,
+      );
+      expect(
+        (await (await f.request('/insights/general/opaque-general')).json()).insight.category,
+      ).toBe(category);
+    },
+  );
   it('does not expose old legacy importance as company importance', async () => {
     const f = fixture();
     delete f.item.currentRevision.companyImportance;
@@ -407,6 +457,7 @@ describe('public insight reads through mounted gateway identity boundary', () =>
     const payload = await response.json();
     expect(payload.items[0]).toMatchObject({
       kind: 'general',
+      insight: { category: null },
       textCompleteness: 'lead',
       requiresReassessment: null,
       indicators: [],

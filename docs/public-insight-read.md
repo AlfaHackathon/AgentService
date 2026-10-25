@@ -119,3 +119,5 @@ X-Internal-Secret: <service-only>
 Swagger Agent: существующий opt-in `/agent-service/swagger/index.html`, spec `/agent-service/swagger/v1/swagger.json`; новая public группа Bearer. Insight Swagger документирует новые internal reads и их DTO под InternalSecret. Включение Swagger не расширяет доступ к API.
 
 Не реализованы write-actions/deepen/feedback/assignment, general revision history/current invalidation tracking, persona адаптация (ждём контракт Артёма), нормализованные UI status/category enums и общие bank-position labels. Обсудить карточку можно существующим чатом текстом со стабильным ID; структурированная card-action admission в этот slice не добавлена.
+
+Category and filter: see [insight-category.md](insight-category.md). Personal `currentRevision.category` / history `revision.category` and general `insight.category` are nullable `risk|opportunity|event`, independent of kind and importance. Legacy values stay null.

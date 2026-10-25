@@ -5,6 +5,7 @@ import {
   materialTriggerSchema,
   sourceRefSchema,
 } from './analysis.ts';
+import { insightCategorySchema } from './category.ts';
 import { depthDecisionSchema } from './depth.ts';
 import { mechanisms } from './questions.ts';
 import { type SignalInventory, signalCoverageSchema, signalInventorySchema } from './signals.ts';
@@ -97,6 +98,7 @@ export const newsPlanSchema = z.strictObject({
             novelty: z.enum(['news_specific', 'source_context']),
           })
           .optional(),
+        category: insightCategorySchema.nullable().optional(),
         title: z.string().min(1).max(500),
         conclusion: z.string().min(1).max(6000),
         mechanism: z.string().min(1).max(4000),
