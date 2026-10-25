@@ -202,9 +202,12 @@ export function companyResultSchema(
               v.maxLength(16),
             ),
           }),
-          question: questionHandles.length
-            ? v.union([v.picklist(questionHandles), identity])
-            : identity,
+          question: v.pipe(
+            questionHandles.length ? v.union([v.picklist(questionHandles), identity]) : identity,
+            v.description(
+              'Reuse a previous question handle only for the same literal object as its original binding. For a different documented object or loan, submit a new inline question identity; never reassign a previous question or its history.',
+            ),
+          ),
           conclusion: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(12000)),
           status: v.picklist([
             'observed',
