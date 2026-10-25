@@ -103,6 +103,9 @@ export const roleResultSchema = v.strictObject({
 
 type Assessment = NonNullable<EffectDraft['assessment']>;
 export type NativeCompanyDraft = {
+  companyImportance?:
+    | { score: number | null; rationale: string; evidenceSourceHandles: string[] }
+    | undefined;
   objectHandle: string;
   assessment: {
     applicability?:
@@ -249,6 +252,13 @@ export function companyResultSchema(
             urgency: score,
             novelty: score,
           }),
+          companyImportance: v.optional(
+            v.strictObject({
+              score: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(5))),
+              rationale: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(2000)),
+              evidenceSourceHandles: v.pipe(v.array(v.picklist(sourceHandles)), v.maxLength(16)),
+            }),
+          ),
           sourceHandles: v.pipe(
             v.array(v.picklist(sourceHandles)),
             v.minLength(1),

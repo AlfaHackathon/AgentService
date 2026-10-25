@@ -36,6 +36,12 @@ describe('opt-in Swagger/OpenAPI', () => {
       type: 'string',
     });
     expect(native.post.responses['202']).toBeDefined();
+    expect(JSON.stringify(document.components.schemas.AnalysisRequest)).not.toContain(
+      'companyImportance',
+    );
+    expect(JSON.stringify(document.components.schemas.AnalysisReceipt)).toContain(
+      'companyImportance',
+    );
     const input = document.components.schemas.UserMessage;
     expect(input.additionalProperties).toBe(false);
     expect(input.properties).not.toHaveProperty('message');

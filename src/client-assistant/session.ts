@@ -360,7 +360,7 @@ export class AssistantToolSession {
           currentRevision,
         })),
       instruction:
-        'These are saved company effects. Missing/partial results do not establish zero impact.',
+        'These are saved company effects. Missing/partial results do not establish zero impact. Display company importance only from currentRevision.companyImportance score/rationale; missing or null is not assessed, never infer it from legacy importance or priority.',
     };
   }
 

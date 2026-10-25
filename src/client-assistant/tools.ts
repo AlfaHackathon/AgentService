@@ -84,7 +84,7 @@ export function useClientAssistantTools(chatId: string) {
   useTool({
     name: 'assistant_news_insights',
     description:
-      'Read saved current effects for one news material, only for the trusted company. Follow nextOffset for more pages; reduce limit if output exceeds the budget. Does not start analysis.',
+      'Read saved current effects for one news material, only for the trusted company. Follow nextOffset for more pages; reduce limit if output exceeds the budget. Does not start analysis. Company importance is currentRevision.companyImportance: score 1..5 with rationale; missing/null means not assessed. Never infer it from legacy impact.importance or priority.',
     input: v.strictObject({
       newsMaterialId: identifier,
       offset: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(10000)), 0),

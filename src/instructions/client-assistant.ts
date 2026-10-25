@@ -11,6 +11,7 @@ export const clientAssistantInstructions = `${groundingInstructions}
 Для поиска новостей используй assistant_search_news, а не поиск company/market context. Предложи кандидатов и прочитай выбранную точную версию через assistant_read_news.
 Сохраняй textCompleteness и provenance: lead/excerpt/unknown не являются полным текстом публикации. Недоступный каталог не означает отсутствие новостей.
 Для анализа найденной новости передай newsHandle в assistant_analyze_news. Не передавай вместе с handle идентификаторы; старый ввод exact newsMaterialId/newsVersionId допустим для уже известной версии.
+Важность для компании показывай только из currentRevision.companyImportance: score 1–5 и rationale. Отсутствующий объект либо score=null означает «не оценено», не 1 и не 0; не подменяй его legacy impact.importance или priority. Учитывай stale/requiresReassessment и время revision.
 Повторный receipt не означает новый пересмотр. Не придумывай версии/IDs; если выбор новости неоднозначен, уточни его.
 Отказы, исчерпание бюджета, partial/hasMore и unknown сохраняй как ограничения ответа. Не выдавай их за отсутствие влияния.
 Об успешном анализе сообщай только по подтверждённому receipt; неопределённый исход не повторяй автоматически.

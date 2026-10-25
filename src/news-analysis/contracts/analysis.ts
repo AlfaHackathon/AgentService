@@ -163,7 +163,38 @@ export const responseCalculationSchema = calculationSchema.extend({
   expression: z.preprocess(normalizeResponseExpression, expressionSchema),
 });
 
+export const companyImportanceSchema = z
+  .strictObject({
+    score: z
+      .number()
+      .int()
+      .min(1)
+      .max(5)
+      .nullable()
+      .describe(
+        'Company decision importance: 1 low, 2 moderate, 3 attention, 4 high, 5 critical. Null means not assessed; not confidence or financial magnitude.',
+      ),
+    rationale: z.string().trim().min(1).max(2000),
+    evidenceRefs: z.array(sourceRefSchema).max(16),
+  })
+  .refine(
+    (rating) => rating.score === null || rating.evidenceRefs.length > 0,
+    'An assessed company importance needs exact evidence; use null when not assessed.',
+  )
+  .meta({
+    examples: [
+      {
+        score: 4,
+        rationale: 'Synthetic own-company dependency needs prompt review.',
+        evidenceRefs: [
+          { materialId: 'synthetic-own', versionId: 'v1', contentHash: 'a'.repeat(64) },
+        ],
+      },
+    ],
+  });
+
 export const draftSchema = z.strictObject({
+  companyImportance: companyImportanceSchema.optional(),
   question: questionSchema.optional(),
   assessment: assessmentSchema.optional(),
   effectKey: identifier,
@@ -251,6 +282,7 @@ export const contextBundleSchema = z.object({
 export type ContextBundle = z.infer<typeof contextBundleSchema>;
 
 const revisionSchema = z.object({
+  companyImportance: companyImportanceSchema.nullable().optional(),
   publicationClass: z
     .enum(['consequence', 'scenario', 'missing_data', 'unaffected', 'review'])
     .nullable()
