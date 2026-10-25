@@ -44,7 +44,9 @@ export function questionBindingScope(): CompanyResultScope {
     asOf: replay.request.asOf,
     sources: [replay.context.news, ...replay.context.materials],
     objects: replay.objectCatalog,
-    questions: replay.previousQuestions,
+    questions: replay.previousQuestions.map(({ economicObjectId, ...question }) =>
+      economicObjectId === undefined ? question : { ...question, economicObjectId },
+    ),
   };
 }
 
