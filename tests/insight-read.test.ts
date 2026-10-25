@@ -79,6 +79,17 @@ function revision() {
       urgency: 5,
       novelty: 3,
     },
+    assessment: {
+      applicability: {
+        status: 'established',
+        basis: 'documented_exposure',
+        explanation: 'Documented synthetic exposure',
+        sourceRefs: [ref(own)],
+        assumptions: ['Conditional scenario'],
+      },
+      conditions: [],
+      unknowns: [],
+    },
     calculation: {
       expression: { kind: 'value', value: '12345678901234567890.1234' },
       unit: 'RUB',
@@ -450,11 +461,85 @@ describe('optional sourced calculation indicators', () => {
       expect(body.currentRevision).not.toHaveProperty('calculation');
     },
   );
+  it.each([
+    'profile_only',
+    'missing_applicability',
+    'invented_budget',
+    'unbound_budget_quote',
+    'budget_period_prefix',
+    'budget_object_prefix',
+  ])(
+    'keeps historical %s cards and history readable without an unsupported indicator',
+    async (kind) => {
+      const f = fixture();
+      const revision = f.item.currentRevision;
+      if (kind === 'profile_only')
+        f.materials.set('own', { ...own, sourceId: 'provided-bank-csv' });
+      if (kind === 'missing_applicability') revision.assessment = null;
+      if (kind.includes('budget')) {
+        present(revision.question).frame = 'budget_delta';
+        present(revision.question).baselinePeriod = 'budget:2027';
+        present(revision.impact).economicObjectId = 'L-123';
+        if (kind === 'budget_period_prefix' || kind === 'budget_object_prefix') {
+          const fact =
+            kind === 'budget_period_prefix' ? 'budget:20270 for L-123' : 'budget:2027 for L-1234';
+          f.materials.set('own', { ...own, text: fact });
+          present(revision.assessment).conditions = [
+            {
+              id: 'budget',
+              assertion: 'observed',
+              dependsOn: [],
+              fact,
+              predicate: 'budget_baseline',
+              status: 'supported',
+              sourceRefs: [ref(own)],
+            },
+          ];
+        }
+        if (kind === 'unbound_budget_quote')
+          present(revision.assessment).conditions = [
+            {
+              id: 'budget',
+              assertion: 'observed',
+              dependsOn: [],
+              fact: 'budget:2027 for L-123',
+              predicate: 'budget_baseline',
+              status: 'supported',
+              sourceRefs: [ref(own)],
+            },
+          ];
+      }
+      const detail = await f.request('/insights/personal/question-1');
+      expect(detail.status).toBe(200);
+      const body = await detail.json();
+      expect(body.indicators).toEqual([]);
+      expect(body.indicatorAvailability.reason).toBe(
+        kind.includes('budget') ? 'unknown_baseline' : 'insufficient_evidence',
+      );
+      const history = await f.request('/insights/personal/question-1/history');
+      expect(history.status).toBe(200);
+      expect((await history.json()).items[0].indicators).toEqual([]);
+    },
+  );
   it('preserves a proven zero as string and optional comparison baseline', async () => {
     const f = fixture();
     f.item.currentRevision.calculationResult = '0';
     present(f.item.currentRevision.question).frame = 'budget_delta';
     present(f.item.currentRevision.question).baselinePeriod = 'budget:2026-11';
+    present(f.item.currentRevision.impact).economicObjectId = 'L-123';
+    const fact = 'budget:2026-11 for loan L-123 is documented';
+    f.materials.set('own', { ...own, text: fact });
+    present(f.item.currentRevision.assessment).conditions = [
+      {
+        id: 'budget',
+        assertion: 'observed',
+        dependsOn: [],
+        fact,
+        predicate: 'budget_baseline',
+        status: 'supported',
+        sourceRefs: [ref(own)],
+      },
+    ];
     const body = await (await f.request()).json();
     expect(body.items[0].indicators[0]).toMatchObject({
       value: '0',
