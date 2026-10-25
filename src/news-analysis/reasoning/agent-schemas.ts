@@ -105,9 +105,11 @@ type Assessment = NonNullable<EffectDraft['assessment']>;
 export type NativeCompanyDraft = {
   objectHandle: string;
   assessment: {
-    applicability?: Omit<NonNullable<Assessment['applicability']>, 'sourceRefs'> & {
-      sourceHandles: string[];
-    };
+    applicability?:
+      | (Omit<NonNullable<Assessment['applicability']>, 'sourceRefs'> & {
+          sourceHandles: string[];
+        })
+      | undefined;
     conditions: (Omit<Assessment['conditions'][number], 'sourceRefs'> & {
       sourceHandles: string[];
     })[];
@@ -120,7 +122,7 @@ export type NativeCompanyDraft = {
     economicObjectHandle: string | null;
   };
   sourceHandles: string[];
-  calculation?: { expression: string; unit: string; period: string };
+  calculation?: { expression: string; unit: string; period: string } | undefined;
 };
 
 export function companyResultSchema(
