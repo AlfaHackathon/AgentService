@@ -31,6 +31,24 @@ describe('opt-in Swagger/OpenAPI', () => {
     expect(document.paths['/internal/news-analysis'].post.security).toEqual([
       { InternalSecret: [] },
     ]);
+    for (const path of [
+      '/insights',
+      '/insights/{kind}/{id}',
+      '/insights/personal/{id}/history',
+    ] as const) {
+      expect(document.paths[path].get.security).toEqual([{ GatewayBearer: [] }]);
+      expect(Object.keys(document.paths[path])).toEqual(['get']);
+    }
+    expect(JSON.stringify(document.components.schemas.InsightCard)).not.toContain(
+      'modelExplanation',
+    );
+    expect(JSON.stringify(document.components.schemas.InsightCard)).not.toContain(
+      'calculationResult',
+    );
+    expect(JSON.stringify(document.components.schemas.InsightCard)).toContain('companyImportance');
+    expect(JSON.stringify(document.components.schemas.InsightCard)).toContain(
+      'indicatorAvailability',
+    );
     const native = document.paths['/agents/assistant/{chatId}'];
     expect(native.get.responses['200'].content['text/event-stream'].schema).toEqual({
       type: 'string',
