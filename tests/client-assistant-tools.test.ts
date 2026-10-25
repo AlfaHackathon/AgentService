@@ -304,6 +304,27 @@ describe('conversational service boundary (no live model)', () => {
     expect(JSON.stringify(output)).not.toContain('foreign-data');
   });
 
+  it('returns persisted company importance in assistant_news_insights without inferring legacy scores', async () => {
+    const s = setup();
+    const rating = {
+      score: 4,
+      rationale: 'Own dependency requires prompt review.',
+      evidenceRefs: [ref],
+    };
+    s.values.effects.effects = [
+      {
+        ...savedEffect,
+        currentRevision: { ...savedEffect.currentRevision, companyImportance: rating },
+      },
+    ];
+    expect(await s.run(() => s.session.effects('news'))).toMatchObject({
+      effects: [{ currentRevision: { companyImportance: rating } }],
+    });
+    s.values.effects.effects = [savedEffect];
+    const legacy = await s.run(() => s.session.effects('news'));
+    expect(legacy.effects[0].currentRevision).not.toHaveProperty('companyImportance');
+  });
+
   it('runs the existing single-company analyzer with server scope and an exact permitted trigger', async () => {
     const s = setup();
     await s.run(() => s.session.search('contract'));

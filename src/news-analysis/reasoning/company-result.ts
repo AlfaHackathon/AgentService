@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 import { type EffectDraft, reasoningOutputSchema } from '../contracts/analysis.ts';
+import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog, selectedEconomicObject } from '../retrieval/economic-objects.ts';
@@ -50,6 +51,7 @@ export function resolveCompanyResult(
         (
           {
             sourceHandles,
+            companyImportance,
             calculation,
             objectHandle,
             assessment,
@@ -103,11 +105,30 @@ export function resolveCompanyResult(
             );
           return {
             ...draft,
+            ...(companyImportance
+              ? {
+                  companyImportance: {
+                    score: companyImportance.score,
+                    rationale: companyImportance.rationale,
+                    evidenceRefs: companyImportance.evidenceSourceHandles.map((h) => {
+                      const source = sources[handles.indexOf(h)];
+                      if (!source || !sourceHandles.includes(h))
+                        throw new Error('Unbound importance evidence');
+                      return {
+                        materialId: source.materialId,
+                        versionId: source.versionId,
+                        contentHash: source.contentHash,
+                      };
+                    }),
+                  },
+                }
+              : {}),
             impact: {
               ...Object.fromEntries(
                 Object.entries(impact).filter(([key]) => key !== 'economicObjectHandle'),
               ),
               economicObjectId,
+              ...(companyImportance ? { importance: companyImportance.score ?? 0 } : {}),
             },
             question,
             literalObjectRef: object.literal,
@@ -177,7 +198,13 @@ export function resolveCompanyResult(
         },
       ),
     }).drafts;
-    for (const draft of parsed) validateFinancialFrame(draft, sources);
+    for (const draft of parsed) {
+      validateCompanyImportanceEvidence(
+        draft,
+        sources.filter((s) => s.kind === 'company' && s.companyIds.includes(companyId)),
+      );
+      validateFinancialFrame(draft, sources);
+    }
     return parsed;
   } catch (error) {
     if (error instanceof NewsAnalysisError) throw error;
