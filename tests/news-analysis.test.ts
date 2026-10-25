@@ -424,6 +424,24 @@ describe('internal news analysis through actual HTTP clients', () => {
     expect(state.receipts.size).toBe(0);
   });
 
+  it('saves an empty receipt when canonical preparation leaves an existing head unrevised', async () => {
+    const state = await setup();
+    await state.analyzer.analyze(request);
+    const previous = structuredClone([...state.effects.values()]);
+    const prepare = vi
+      .spyOn(state.analyzer.dependencies.insights, 'prepare')
+      .mockResolvedValueOnce([]);
+
+    const result = await state.analyzer.analyze({ ...request, newsVersionId: 'v2' });
+
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(result.effects).toEqual([]);
+    expect(state.writes).toHaveLength(2);
+    expect(state.writes[1]).toMatchObject({ drafts: [] });
+    expect([...state.effects.values()]).toEqual(previous);
+    expect(state.receipts.size).toBe(2);
+  });
+
   it('coalesces concurrent identical commands within one process', async () => {
     const state = await setup();
     const results = await Promise.all([
