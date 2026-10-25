@@ -1,7 +1,9 @@
+import * as v from 'valibot';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AssistantServiceClients } from '../src/client-assistant/service-clients.ts';
 import { AssistantToolSession, initialAssistantState } from '../src/client-assistant/session.ts';
+import { analyzeNewsInput } from '../src/client-assistant/tools.ts';
 import type { AnalysisResult } from '../src/news-analysis/application/company-analysis.ts';
 import type { materialSchema, StoredEffect } from '../src/news-analysis/contracts/analysis.ts';
 import { NewsAnalysisError } from '../src/news-analysis/contracts/errors.ts';
@@ -29,6 +31,7 @@ const publicNews: z.infer<typeof materialSchema> = {
   versionId: 'v1',
   kind: 'news',
   companyIds: [],
+  bankProfileIds: [],
 };
 const receipt: AnalysisResult = {
   analysisId: 'saved-analysis',
@@ -85,6 +88,8 @@ function setup() {
     search: { hits: [{ companyId, sourceRefs: [ref], excerpt: 'Own facts' }], exhaustive: false },
     material: original,
     news: publicNews,
+    newsSearch: { asOf, hits: [publicNews], exhaustive: false },
+    newsSearchAvailable: true,
     effects: { effects: [] as StoredEffect[] },
     saved: null as AnalysisResult | null,
     error: false,
@@ -105,6 +110,10 @@ function setup() {
         ? Response.json(values.membership)
         : Response.json({ errorMessage: 'no membership' }, { status: 404 });
     if (url.pathname.includes('/knowledge/companies/')) return Response.json(values.profile);
+    if (url.pathname.endsWith('/news/search'))
+      return values.newsSearchAvailable
+        ? Response.json(values.newsSearch)
+        : Response.json({ errorMessage: 'route unavailable' }, { status: 404 });
     if (url.pathname.endsWith('/search')) return Response.json(values.search);
     if (url.pathname.includes('/material-versions/')) return Response.json(values.material);
     if (url.pathname.endsWith('/news/resolve')) return Response.json(values.news);
@@ -394,4 +403,224 @@ describe('conversational service boundary (no live model)', () => {
       }),
     ).toMatchObject({ code: 'SERVICE_TIMEOUT' });
   });
+});
+
+describe('admitted news discovery and exact read (fake services only)', () => {
+  it('finds, reads and analyzes a selected exact version using a company-bound handle', async () => {
+    const s = setup();
+    s.values.news = {
+      ...publicNews,
+      provenance: {
+        acquisition: 'event_payload',
+        sourceUrl: 'https://publisher.test/news',
+        retrievedAt: asOf,
+        textCompleteness: 'lead',
+        originVersionId: null,
+        locator: null,
+      },
+    };
+    s.values.newsSearch.hits = [s.values.news];
+    const found = await s.run(() => s.session.searchNews('rates'));
+    expect(found).toMatchObject({
+      exhaustive: false,
+      hits: [{ newsHandle: 'n0', textCompleteness: 'lead' }],
+    });
+    expect(JSON.stringify(found)).not.toContain('Own facts');
+    expect(s.calls.find((c) => c.url.pathname.endsWith('/news/search'))?.body).toEqual({
+      query: 'rates',
+      asOf,
+      limit: 6,
+    });
+    expect(s.analyze).not.toHaveBeenCalled();
+    expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+      newsHandle: 'n0',
+      textCompleteness: 'lead',
+      original: { materialId: 'news', versionId: 'v1', text: 'Own facts' },
+    });
+    const resolve = s.calls.find((c) => c.url.pathname.endsWith('/news/resolve'));
+    expect(resolve?.body).toEqual({ newsMaterialId: 'news', newsVersionId: 'v1', asOf });
+    expect(await s.run(() => s.session.analyzeSelectedNews('n0'))).toMatchObject({
+      status: 'completed',
+    });
+    expect(s.analyze).toHaveBeenCalledExactlyOnceWith({
+      companyId,
+      bankProfileId: 'U_96',
+      newsMaterialId: 'news',
+      newsVersionId: 'v1',
+      asOf,
+    });
+  });
+
+  it.each(['company', 'bank-profile', 'kind', 'time', 'snapshot'])(
+    'rejects %s search results without disclosing content or granting handles',
+    async (kind) => {
+      const s = setup();
+      const hit = { ...publicNews, title: 'foreign-data' };
+      if (kind === 'company') hit.companyIds = [foreignId];
+      if (kind === 'bank-profile') hit.bankProfileIds = ['U_97'];
+      if (kind === 'kind') hit.kind = 'market';
+      if (kind === 'time') hit.knownAt = '2026-10-24T00:00:00.0000001Z';
+      if (kind === 'snapshot') s.values.newsSearch.asOf = '2026-10-25T00:00:00Z';
+      s.values.newsSearch.hits = [hit];
+      const result = await s.run(() => s.session.searchNews('rates'));
+      expect(result).toMatchObject({ code: 'ASSISTANT_NEWS_SCOPE' });
+      expect(JSON.stringify(result)).not.toContain('foreign-data');
+      expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+        code: 'ASSISTANT_NEWS_HANDLE',
+      });
+    },
+  );
+
+  it.each(['hash', 'identity', 'version', 'company', 'bank-profile', 'time', 'kind'])(
+    'rechecks %s on both read and selected analysis',
+    async (kind) => {
+      const s = setup();
+      await s.run(() => s.session.searchNews('rates'));
+      if (kind === 'hash') s.values.news = { ...publicNews, contentHash: 'b'.repeat(64) };
+      if (kind === 'identity') s.values.news = { ...publicNews, materialId: 'different' };
+      if (kind === 'version') s.values.news = { ...publicNews, versionId: 'v2' };
+      if (kind === 'company') s.values.news = { ...publicNews, companyIds: [foreignId] };
+      if (kind === 'bank-profile') s.values.news = { ...publicNews, bankProfileIds: ['U_97'] };
+      if (kind === 'time')
+        s.values.news = { ...publicNews, knownAt: '2026-10-24T00:00:00.0000001Z' };
+      if (kind === 'kind') s.values.news = { ...publicNews, kind: 'market' };
+      expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+        code: 'ASSISTANT_NEWS_SCOPE',
+      });
+      expect(await s.run(() => s.session.analyzeSelectedNews('n0'))).toMatchObject({
+        code: 'ASSISTANT_NEWS_SCOPE',
+      });
+      expect(s.analyze).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not fetch handles from another company or from the context handle namespace', async () => {
+    const s = setup();
+    await s.run(() => s.session.searchNews('rates'));
+    const before = s.calls.filter((c) => c.url.pathname.endsWith('/news/resolve')).length;
+    s.values.membership = { id: foreignId, name: 'Changed', bankProfileId: null };
+    expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+      code: 'ASSISTANT_NEWS_HANDLE',
+    });
+    expect(await s.run(() => s.session.analyzeSelectedNews('n0'))).toMatchObject({
+      code: 'ASSISTANT_NEWS_HANDLE',
+    });
+    expect(s.calls.filter((c) => c.url.pathname.endsWith('/news/resolve'))).toHaveLength(before);
+    expect(s.analyze).not.toHaveBeenCalled();
+    expect(await s.run(() => s.session.readNews('s0'))).toMatchObject({
+      code: 'ASSISTANT_NEWS_HANDLE',
+    });
+  });
+
+  it('keeps the search snapshot across messages and never calls a missing endpoint an empty corpus', async () => {
+    const s = setup();
+    await s.run(() => s.session.searchNews('rates'));
+    s.session.begin();
+    await s.run(() => s.session.readNews('n0'));
+    expect(s.calls.find((c) => c.url.pathname.endsWith('/news/resolve'))?.body).toEqual({
+      newsMaterialId: 'news',
+      newsVersionId: 'v1',
+      asOf,
+    });
+    s.values.newsSearchAvailable = false;
+    expect(await s.run(() => s.session.searchNews('rates'))).toMatchObject({
+      code: 'ASSISTANT_NEWS_SEARCH_UNAVAILABLE',
+    });
+    expect(s.analyze).not.toHaveBeenCalled();
+  });
+
+  it('preserves unknown completeness, output budgets, and old persisted state', async () => {
+    const s = setup();
+    delete s.state.newsSources;
+    await s.run(() => s.session.searchNews('rates'));
+    expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+      textCompleteness: 'unknown',
+    });
+    s.values.news = { ...publicNews, text: 'x'.repeat(24001) };
+    expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({ code: 'OUTPUT_BUDGET' });
+  });
+
+  it('distinguishes empty results and invalid contracts and fails closed before news search without membership', async () => {
+    const s = setup();
+    s.values.newsSearch.hits = [];
+    expect(await s.run(() => s.session.searchNews('rates'))).toMatchObject({
+      exhaustive: false,
+      hits: [],
+    });
+    s.values.newsSearch.hits = Array.from({ length: 7 }, () => publicNews);
+    expect(await s.run(() => s.session.searchNews('rates'))).toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+    });
+    expect(s.state.newsSources).toEqual([]);
+    s.values.membership = null;
+    const before = s.calls.filter((c) => c.url.pathname.endsWith('/news/search')).length;
+    expect(await s.run(() => s.session.searchNews('rates'))).toMatchObject({
+      code: 'ASSISTANT_NO_COMPANY',
+    });
+    expect(s.calls.filter((c) => c.url.pathname.endsWith('/news/search'))).toHaveLength(before);
+  });
+
+  it('restores exact selections from persisted state and preserves full/excerpt completeness', async () => {
+    for (const completeness of ['full', 'excerpt'] as const) {
+      const s = setup();
+      s.values.news = {
+        ...publicNews,
+        provenance: {
+          acquisition: 'event_payload',
+          sourceUrl: null,
+          retrievedAt: asOf,
+          textCompleteness: completeness,
+          originVersionId: null,
+          locator: null,
+        },
+      };
+      s.values.newsSearch.hits = [s.values.news];
+      await s.run(() => s.session.searchNews('rates'));
+      const restored = new AssistantToolSession(
+        chatId,
+        structuredClone(s.state),
+        s.session.dependencies,
+        s.persist,
+      );
+      expect(await s.run(() => restored.readNews('n0'))).toMatchObject({
+        textCompleteness: completeness,
+      });
+    }
+  });
+
+  it('evicts bounded handles instead of allowing arbitrary exact-version reads', async () => {
+    const s = setup();
+    for (let page = 0; page < 5; page++) {
+      s.values.newsSearch.hits = Array.from({ length: 6 }, (_, i) => ({
+        ...publicNews,
+        materialId: `news-${page}-${i}`,
+      }));
+      await s.run(() => s.session.searchNews('rates'));
+    }
+    expect(s.state.newsSources).toHaveLength(24);
+    expect(await s.run(() => s.session.readNews('n0'))).toMatchObject({
+      code: 'ASSISTANT_NEWS_HANDLE',
+    });
+    expect(s.calls.some((c) => c.url.pathname.endsWith('/news/resolve'))).toBe(false);
+  });
+});
+
+it('admits exactly one analysis selector and never identity or time from the model', () => {
+  expect(v.safeParse(analyzeNewsInput, { newsHandle: 'n0' }).success).toBe(true);
+  expect(
+    v.safeParse(analyzeNewsInput, {
+      newsMaterialId: 'news',
+      newsVersionId: 'v1',
+      triggerSourceHandle: 's0',
+    }).success,
+  ).toBe(true);
+  for (const input of [
+    {},
+    { newsMaterialId: 'news' },
+    { newsHandle: 's0' },
+    { newsHandle: 'n0', newsMaterialId: 'news', newsVersionId: 'v1' },
+    { newsHandle: 'n0', companyId: foreignId },
+    { newsHandle: 'n0', asOf },
+  ])
+    expect(v.safeParse(analyzeNewsInput, input).success).toBe(false);
 });
