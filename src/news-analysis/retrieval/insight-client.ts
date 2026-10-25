@@ -7,6 +7,7 @@ import {
   effectsResponseSchema,
   responseCalculationSchema,
 } from '../contracts/analysis.ts';
+import { validateUniqueBusinessQuestions } from '../contracts/business-questions.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
 
 export class InsightClient {
@@ -31,6 +32,7 @@ export class InsightClient {
     drafts: import('../contracts/analysis.ts').EffectDraft[],
     expectedStateVersion?: number,
   ): Promise<AnalysisWrite['drafts']> {
+    validateUniqueBusinessQuestions(drafts);
     const preparedDraft = draftSchema.extend({
       expectedPreviousRevisionId: z.string().nullable(),
       calculation: responseCalculationSchema
@@ -75,6 +77,7 @@ export class InsightClient {
     );
   }
   async saveAnalysis(input: AnalysisWrite) {
+    validateUniqueBusinessQuestions(input.drafts);
     return parseResponse(
       analysisReceiptSchema,
       await this.http.request('/internal/analyses', input),

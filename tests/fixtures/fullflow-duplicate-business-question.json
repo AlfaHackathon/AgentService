@@ -1,0 +1,255 @@
+{
+  "provenance": "Wholly synthetic fixture replay from bounded attempt2; no auth headers, credentials or provider endpoint retained. Distinct invented loans must not be silently dropped.",
+  "request": {
+    "companyId": "d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+    "newsMaterialId": "news-aa41b91f76af26ef584af4cc065693975cde2b50",
+    "newsVersionId": "v-f57e168af17675692e3f9a4d7e70680a9fbfe212",
+    "asOf": "2026-10-25T21:05:37.179831+00:00",
+    "retrievalQueries": [
+      "Россия компании 2027 плавающие процентные ставки кредит договор индексация базовый индекс дата пересмотра условий",
+      "Россия корпоративное рефинансирование 2027 стоимость заимствований кредиты плавающая ставка долговая нагрузка",
+      "Россия компании депозиты с плавающей ставкой корпоративные остатки процентный доход 2027 условия",
+      "Россия инвестиционные планы компаний стоимость финансирования оборотный капитал процентные ставки 2027 отраслевой анализ"
+    ],
+    "retrievalLimit": 4,
+    "mechanisms": [
+      "financing_cost",
+      "refinancing_access",
+      "investment",
+      "liquidity",
+      "deposit_income"
+    ]
+  },
+  "context": {
+    "news": {
+      "materialId": "news-aa41b91f76af26ef584af4cc065693975cde2b50",
+      "versionId": "v-f57e168af17675692e3f9a4d7e70680a9fbfe212",
+      "sourceId": "synthetic-bounded-live-attempt2",
+      "kind": "news",
+      "title": "Synthetic benchmark increase: funding costs, deposit income and investment decisions in 2027",
+      "text": "SYNTHETIC TEST PUBLICATION, entirely invented. The fictional FixtureBench-E benchmark rises from 12 percent to 14 percent effective 1 January 2027 and stays at 14 percent for 2027 in this synthetic scenario. Floating-rate business loans explicitly indexed to FixtureBench-E with immediate reset and unchanged principal would face a 2 percentage point rate increase; fixed-rate contracts do not automatically reprice. At RUB 1000000 principal maintained for 365 days on an ACT/365 basis and without floors, caps or offsets, the conditional incremental annual interest would be RUB 20000. This arithmetic example is not a claim about any company. New borrowing and refinancing may become more costly, firms may postpone debt-financed investment or reassess working-capital needs, while eligible floating-rate deposits may earn more. Actual contracts, index identity, reset dates, balances, hedges, liquidity needs and deposits must be verified from each company original; preserve unknown if not documented. These are conditional causal mechanisms, not asserted company forecasts or real bank guidance.",
+      "knownAt": "2026-10-25T21:05:37.179831+00:00",
+      "publishedAt": "2026-10-25T21:05:37.179831+00:00",
+      "provenance": {
+        "acquisition": "event_payload",
+        "sourceUrl": null,
+        "retrievedAt": "2026-10-25T21:05:37.179831+00:00",
+        "textCompleteness": "full",
+        "originVersionId": null,
+        "locator": "bounded-live-attempt2-20261025T210539Z"
+      },
+      "correctsVersionId": null,
+      "companyIds": [],
+      "bankProfileIds": [],
+      "contentHash": "e4a7db7733b5c0f85a5670da534e9ae75bd56d76a0163d1918f27675329300eb"
+    },
+    "materials": [
+      {
+        "materialId": "synthetic-quality-20261025-preservation-c-001-contract",
+        "versionId": "v1",
+        "sourceId": "synthetic-quality-once",
+        "kind": "company",
+        "title": "Invented FixtureLoan-C-Preserve-001 complete annual terms",
+        "text": "SYNTHETIC INVENTED TEST ONLY. This document concerns only loan FixtureLoan-C-Preserve-001 held by the invented Company C Preserve. Principal is RUB 1000000 and is constant for every one of the 365 calendar days from 2027-01-01 through 2027-12-31 inclusive. Its contractual annual simple interest rate equals exactly the named index FixtureBench-C-Preserve, with zero margin, no floor or cap, no compounding, fees, taxes, repayments or hedges. Before the announced change the index and contract rate are 12 percent per annum. The contract resets immediately on the effective date of any change to FixtureBench-C-Preserve. Day count is Actual/365 Fixed; 2027 has exactly 365 interest-accrual days for this test. All interest for those365 days is paid once at the end of 2027-12-31. Principal and all other terms remain unchanged. This is one specific invented loan, not a claim about all obligations of the company. FixtureLoan-C-Preserve-001 is distinct from the older invented contract material; this document neither replaces nor corrects that earlier loan. Consequences for this new loan must be assessed separately; no aggregate company-wide total is asserted.",
+        "knownAt": "2026-10-25T13:13:24.267212+00:00",
+        "publishedAt": null,
+        "correctsVersionId": null,
+        "companyIds": ["d7aeac1f-432f-47bd-a826-0d55fbb3fccf"],
+        "bankProfileIds": [],
+        "contentHash": "3ee26dac98b925708e4d79173ea25dd14dc1d57e763368ba6b0c777bfaa7be36"
+      },
+      {
+        "materialId": "synthetic-quality-20261025-preservation-c-unnamed-loan",
+        "versionId": "v1",
+        "sourceId": "synthetic-quality-once",
+        "kind": "company",
+        "title": "Invented independent Company C Preserve unnamed-index loan",
+        "text": "SYNTHETIC INVENTED CONTRACT ONLY. Company C Preserve holds a separate older loan FixtureLoan-C-Unnamed. Principal is RUB 1000000. Its annual rate equals an unnamed reference rate plus 2 percentage points. The reference rate was 10 percent. The identity of this reference index is not specified. This loan is distinct from FixtureLoan-C-Preserve-001; neither contract replaces or corrects the other. No company-wide total is asserted.",
+        "knownAt": "2026-10-25T13:13:24.267212+00:00",
+        "publishedAt": null,
+        "correctsVersionId": null,
+        "companyIds": ["d7aeac1f-432f-47bd-a826-0d55fbb3fccf"],
+        "bankProfileIds": [],
+        "contentHash": "78f53eeccb7ca538fdca133bf9278ae51998c2cfeafee464034c3b65bc31e43d"
+      }
+    ],
+    "coverage": {
+      "complete": true,
+      "materialCount": 3,
+      "companyMaterialCount": 2,
+      "marketMaterialCount": 0,
+      "previousNewsVersionCount": 0,
+      "characters": 4386,
+      "asOf": "2026-10-25T21:05:37.179831+00:00",
+      "budget": {
+        "maximumCharacters": 120000,
+        "usedCharacters": 4386,
+        "omittedSources": [],
+        "stopReason": "within_budget"
+      }
+    },
+    "retrieval": {
+      "mode": "dense+lexical-rrf",
+      "reranker": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+      "candidateCount": 3,
+      "selectedMaterials": 2,
+      "availableMaterials": 2,
+      "omittedMaterials": 0,
+      "exhaustive": true
+    }
+  },
+  "rawResult": {
+    "drafts": [
+      {
+        "objectHandle": "o0",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "qualitative",
+          "targetPeriod": "unknown",
+          "baselinePeriod": null,
+          "basis": "qualitative"
+        },
+        "assessment": {
+          "applicability": {
+            "status": "unknown",
+            "basis": "documented_exposure",
+            "explanation": "Документирован конкретный заём компании, но его договорный индекс FixtureBench-C-Preserve отличается по названию от FixtureBench-E в текущей новости. Привязка договора к изменению из новости не установлена; представленные материалы не подтверждают и не исключают иные экспозиции.",
+            "sourceHandles": ["s1"],
+            "assumptions": []
+          },
+          "conditions": [
+            {
+              "id": "loan_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-C-Preserve-001 устанавливает основной долг RUB 1 000 000 на весь 2027 год, ставку, равную FixtureBench-C-Preserve, немедленный пересмотр при изменении этого индекса, отсутствие floor/cap и оплату процентов в конце года.",
+              "predicate": "Это договорные условия именно данного займа.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "news_benchmark",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Текущая новость сообщает, что FixtureBench-E повышается с 12% до 14% с 2027-01-01 и остаётся 14% в 2027 году.",
+              "predicate": "Это изменение относится к названному в новости индексу FixtureBench-E.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "rate_effect",
+              "assertion": "derived",
+              "dependsOn": ["loan_terms", "news_benchmark", "index_identity"],
+              "fact": "Изменение расходов по займу вследствие новости неизвестно, поскольку тождество FixtureBench-C-Preserve и FixtureBench-E не установлено.",
+              "predicate": "Для вывода о событийному приросте процентов необходимо установить, что договорный индекс меняется именно так, как FixtureBench-E.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s1"]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "index_identity",
+              "fact": "Не установлено, тождественен ли договорный FixtureBench-C-Preserve индексу FixtureBench-E из новости.",
+              "query": null,
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-preservation-c-001-contract"
+            }
+          ]
+        },
+        "conclusion": "По отдельному займу FixtureLoan-C-Preserve-001 текущая новость не подтверждает изменения договорной ставки: договор ссылается на FixtureBench-C-Preserve, а новость — на FixtureBench-E. Тождество индексов неизвестно, поэтому событийное изменение расходов не установлено; это не нулевой эффект. Прежний сохранённый вывод по отдельному вопросу/основанию не отменяется и здесь не пересчитывается. Фактическая оплата процентов не подтверждена. Retrieval покрывает представленные материалы, но не доказывает отсутствие иных договоров компании.",
+        "status": "unknown",
+        "impact": {
+          "metric": "expense_delta",
+          "amountBasis": "qualitative",
+          "economicObjectHandle": null,
+          "evidenceStatus": "unknown",
+          "importance": 0,
+          "urgency": 0,
+          "novelty": 1
+        },
+        "companyImportance": {
+          "score": 2,
+          "rationale": "Есть собственный документированный заём с прямым каналом процентных расходов, однако связь индекса с новостью не установлена; нет данных о срочном решении или существенности для компании.",
+          "evidenceSourceHandles": ["s1"]
+        },
+        "sourceHandles": ["s0", "s1"]
+      },
+      {
+        "objectHandle": "o0",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "qualitative",
+          "targetPeriod": "unknown",
+          "baselinePeriod": null,
+          "basis": "qualitative"
+        },
+        "assessment": {
+          "applicability": {
+            "status": "unknown",
+            "basis": "documented_exposure",
+            "explanation": "Компания документально имеет отдельный заём с плавающей ставкой, но индекс и механизм пересмотра не позволяют установить связь с изменением FixtureBench-E. Запрошенный добор сведений не дал новых доказательств.",
+            "sourceHandles": ["s2"],
+            "assumptions": []
+          },
+          "conditions": [
+            {
+              "id": "unnamed_loan",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-C-Unnamed устанавливает ставку как неназванная референсная ставка плюс 2 процентных пункта; документ сообщает значение референсной ставки 10%, но не её идентичность.",
+              "predicate": "Это условия отдельного займа компании; договорный индекс не назван.",
+              "status": "supported",
+              "sourceHandles": ["s2"]
+            },
+            {
+              "id": "event_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Текущая новость сообщает повышение FixtureBench-E с 12% до 14% с 2027-01-01.",
+              "predicate": "Новость описывает изменение только названного в ней FixtureBench-E.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "unknown_effect",
+              "assertion": "derived",
+              "dependsOn": ["unnamed_loan", "event_change", "index_and_reset_unknown"],
+              "fact": "Влияние новости на проценты по этому займу неизвестно: не установлены ни тождество неназванного индекса с FixtureBench-E, ни дата и порядок пересмотра ставки.",
+              "predicate": "Событийный эффект требует совпадения индекса и того, чтобы договорный пересмотр действовал в период изменения.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s2"]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "index_and_reset_unknown",
+              "fact": "Неизвестны идентичность референсного индекса займа, дата и порядок пересмотра ставки, график основного долга и период начисления/оплаты процентов.",
+              "query": null,
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-preservation-c-unnamed-loan"
+            }
+          ]
+        },
+        "conclusion": "Компания имеет отдельный заём FixtureLoan-C-Unnamed с неназванным плавающим индексом плюс 2 п.п. Его связь с FixtureBench-E, условия пересмотра и период начисления неизвестны; поэтому влияние новости на расход по займу не установлено, но нулевой эффект также не доказан. Фактическая оплата процентов неизвестна. Материалы не подтверждают совокупную долговую экспозицию компании.",
+        "status": "unknown",
+        "impact": {
+          "metric": "expense_delta",
+          "amountBasis": "qualitative",
+          "economicObjectHandle": null,
+          "evidenceStatus": "unknown",
+          "importance": 0,
+          "urgency": 0,
+          "novelty": 1
+        },
+        "companyImportance": {
+          "score": 2,
+          "rationale": "Собственный документ подтверждает плавающий заём и потенциально прямой канал процентных расходов, но неизвестны индекс, сроки пересмотра и размер/период экспозиции к событию; срочность и существенность не установлены.",
+          "evidenceSourceHandles": ["s2"]
+        },
+        "sourceHandles": ["s0", "s2"]
+      }
+    ]
+  }
+}

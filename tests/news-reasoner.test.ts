@@ -716,7 +716,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(result[0]?.impact?.evidenceStatus).toBe('unknown');
   });
 
-  it('leaves duplicate quantified consequences for the final uniqueness guard', async () => {
+  it('allows one correction of duplicate quantified consequences before accepting a result', async () => {
     const own = {
       ...context.news,
       materialId: 'synthetic-duplicate-terms',
@@ -761,10 +761,86 @@ describe('Flue news agents with the project provider over HTTP', () => {
         novelty: 1,
       },
     };
-    const { reasoner } = await adapter({ drafts: [amount, amount] });
+    const { reasoner, requests } = await adapter(
+      { drafts: [amount, amount] },
+      true,
+      'submit_news_analysis',
+      { drafts: [amount] },
+    );
     const result = await reasoner.analyze(groundedInput);
-    expect(result).toHaveLength(2);
-    expect(result.map((draft) => draft.effectKey)).toEqual(['draft-0', 'draft-1']);
+    expect(result).toHaveLength(1);
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('DUPLICATE_BUSINESS_QUESTION');
+  });
+
+  async function duplicateLoanReplay() {
+    return z
+      .object({
+        request: z.object({
+          companyId: z.string(),
+          newsMaterialId: z.string(),
+          newsVersionId: z.string(),
+          asOf: z.string(),
+        }),
+        context: contextBundleSchema,
+        rawResult: z.object({ drafts: z.array(z.record(z.string(), z.unknown())) }),
+      })
+      .parse(
+        JSON.parse(
+          await readFile(
+            new URL('./fixtures/fullflow-duplicate-business-question.json', import.meta.url),
+            'utf8',
+          ),
+        ),
+      );
+  }
+
+  it('corrects the real two-loan collision once without losing either obligation', async () => {
+    const replay = await duplicateLoanReplay();
+    const corrected = {
+      drafts: replay.rawResult.drafts.map((draft, i) => ({ ...draft, objectHandle: `o${i + 1}` })),
+    };
+    const { reasoner, requests } = await adapter(
+      replay.rawResult,
+      true,
+      'submit_news_analysis',
+      corrected,
+    );
+    const result = await reasoner.review?.({ ...replay, previousEffects: [] }, [], { results: [] });
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('DUPLICATE_BUSINESS_QUESTION');
+    expect(JSON.stringify(requests[1])).toContain('maximumCorrections');
+    expect(result?.map((draft) => draft.literalObjectRef)).toEqual([
+      'FixtureLoan-C-Preserve-001',
+      'FixtureLoan-C-Unnamed',
+    ]);
+    expect(result?.map((draft) => draft.sourceRefs.map((ref) => ref.materialId))).toEqual([
+      [
+        'news-aa41b91f76af26ef584af4cc065693975cde2b50',
+        'synthetic-quality-20261025-preservation-c-001-contract',
+      ],
+      [
+        'news-aa41b91f76af26ef584af4cc065693975cde2b50',
+        'synthetic-quality-20261025-preservation-c-unnamed-loan',
+      ],
+    ]);
+    expect(
+      result?.every((draft) => draft.impact?.evidenceStatus === 'unknown' && !draft.calculation),
+    ).toBe(true);
+  });
+
+  it('stops after the second colliding result rather than silently dropping a distinct loan', async () => {
+    const replay = await duplicateLoanReplay();
+    const { reasoner, requests } = await adapter(
+      replay.rawResult,
+      true,
+      'submit_news_analysis',
+      replay.rawResult,
+    );
+    await expect(reasoner.analyze({ ...replay, previousEffects: [] })).rejects.toMatchObject({
+      code: 'INVALID_REASONING_RESULT',
+    });
+    expect(requests).toHaveLength(2);
   });
 
   it('lets the model repair condition citations before accepting the company result', async () => {
