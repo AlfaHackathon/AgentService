@@ -1,5 +1,6 @@
 import type { AnalysisRequest, ContextBundle } from '../contracts/analysis.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
+import { economicObjectCatalog } from './economic-objects.ts';
 import { type ObjectBinding, objectCatalog, type Source, sourceKey } from './source-catalog.ts';
 export type ToolScope = (
   | {
@@ -76,6 +77,11 @@ export function admitCompanyBundle(
     JSON.stringify(sources).length > (scope.maxSourceCharacters ?? 120000) ||
     JSON.stringify({
       sources,
+      economicObjectCatalog: economicObjectCatalog(
+        sources,
+        scope.request.companyId,
+        scope.request.asOf,
+      ),
       objects: objectCatalog(sources, scope.request.companyId, [], state.objects),
     }).length > (scope.maxEvidenceCharacters ?? 160000)
   )

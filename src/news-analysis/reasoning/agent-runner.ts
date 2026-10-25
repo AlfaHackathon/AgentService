@@ -29,6 +29,7 @@ async function runNewsAgentAttempt(
     sourceHandles?: string[];
     questionHandles?: string[];
     serviceTools?: ToolScope;
+    companyScope?: import('./company-result.ts').CompanyResultScope;
   },
   options: {
     environment: NodeJS.ProcessEnv;
@@ -56,6 +57,7 @@ async function runNewsAgentAttempt(
     'plan_news_insights',
     'project_role_actions',
   ]);
+  let companySubmissions = 0;
   let modelTurn = '';
   let turnSequence = 0;
   const timeoutMs = Math.max(180000, Math.min(options.timeoutMs ?? 180000, 360000));
@@ -79,11 +81,19 @@ async function runNewsAgentAttempt(
         if (event.type === 'message-started')
           modelTurn = event.turnId ?? `model-turn-${++turnSequence}`;
         if (event.type === 'tool-input') {
+          if (event.toolName === 'submit_news_analysis' && ++companySubmissions > 2)
+            throw new Error('Company result submission budget exhausted after 2 submissions');
           const tools = turnTools.get(modelTurn) ?? [];
           tools.push(event.toolName);
           turnTools.set(modelTurn, tools);
           toolTurns.set(event.toolCallId, { turn: modelTurn, name: event.toolName });
         }
+        if (
+          event.type === 'tool-output-error' &&
+          companySubmissions >= 2 &&
+          toolTurns.get(event.toolCallId)?.name === 'submit_news_analysis'
+        )
+          throw new Error('Company result submission budget exhausted after 2 submissions');
         if (event.type === 'tool-output') {
           const call = toolTurns.get(event.toolCallId);
           if (call && resultTools.has(call.name)) acceptedResultTurns.add(call.turn);

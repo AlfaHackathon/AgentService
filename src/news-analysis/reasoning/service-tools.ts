@@ -2,6 +2,7 @@ import { useDataWriter, usePersistentState, useTool } from '@flue/runtime';
 import * as v from 'valibot';
 import { instantAfter } from '../contracts/timestamps.ts';
 import { ContextClient } from '../retrieval/context-client.ts';
+import { economicObjectCatalog } from '../retrieval/economic-objects.ts';
 import { ExternalNewsClient } from '../retrieval/external-news.ts';
 import { FlowContextClient } from '../retrieval/flow-clients.ts';
 import { objectCatalog, type Source, sourceKey } from '../retrieval/source-catalog.ts';
@@ -174,6 +175,11 @@ export function useServiceTools(scope: ToolScope | undefined) {
               ...(admitted.fresh.some((s) => sourceKey(s) === sourceKey(source)) ? { source } : {}),
             })),
             objectCatalog: state.objects,
+            economicObjectCatalog: economicObjectCatalog(
+              state.sources,
+              scope.request.companyId,
+              asOf,
+            ),
           };
         }),
     });
