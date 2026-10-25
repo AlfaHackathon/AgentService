@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import type { EffectDraft } from '../contracts/analysis.ts';
 import { mechanisms, periodPattern } from '../contracts/questions.ts';
 
 const text = (maximum: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(maximum));
@@ -100,14 +101,42 @@ export const roleResultSchema = v.strictObject({
   missingContext: v.pipe(v.array(text(1000)), v.maxLength(16)),
 });
 
+type Assessment = NonNullable<EffectDraft['assessment']>;
+export type NativeCompanyDraft = {
+  objectHandle: string;
+  assessment: {
+    applicability?: Omit<NonNullable<Assessment['applicability']>, 'sourceRefs'> & {
+      sourceHandles: string[];
+    };
+    conditions: (Omit<Assessment['conditions'][number], 'sourceRefs'> & {
+      sourceHandles: string[];
+    })[];
+    unknowns: Assessment['unknowns'];
+  };
+  question: string | NonNullable<EffectDraft['question']>;
+  conclusion: string;
+  status: string;
+  impact: Omit<NonNullable<EffectDraft['impact']>, 'economicObjectId'> & {
+    economicObjectHandle: string | null;
+  };
+  sourceHandles: string[];
+  calculation?: { expression: string; unit: string; period: string };
+};
+
 export function companyResultSchema(
   objectHandles: string[],
   sourceHandles: string[],
   questionHandles: string[] = [],
-) {
+  economicObjectHandles: string[] = [],
+): v.GenericSchema<{ drafts: NativeCompanyDraft[] }> {
   const identity = v.strictObject({
     mechanism: v.picklist(mechanisms),
-    frame: v.picklist(['event_only', 'absolute', 'budget_delta']),
+    frame: v.pipe(
+      v.picklist(['event_only', 'absolute', 'budget_delta']),
+      v.description(
+        'event_only: event-caused contractual counterfactual delta, no invented budget. absolute: a level, not a delta. budget_delta: requires an actual documented budget_baseline excerpt for the selected object.',
+      ),
+    ),
     unit: text(64),
     targetPeriod: v.pipe(v.string(), v.regex(periodPattern)),
     baselinePeriod: v.nullable(v.pipe(v.string(), v.regex(periodPattern))),
@@ -199,7 +228,14 @@ export function companyResultSchema(
               'qualitative',
               'unknown',
             ]),
-            economicObjectId: v.nullable(text(500)),
+            economicObjectHandle: v.pipe(
+              economicObjectHandles.length
+                ? v.nullable(v.picklist(economicObjectHandles))
+                : v.null(),
+              v.description(
+                'Select eN from economicObjectCatalog for every calculation and cite its own evidence source in applicability. Null is only for a qualitative result without calculation; never type or invent an ID.',
+              ),
+            ),
             evidenceStatus: v.picklist([
               'supported',
               'conditional',

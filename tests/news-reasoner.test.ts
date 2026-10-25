@@ -28,6 +28,7 @@ import { runNewsAgent } from '../src/news-analysis/reasoning/agent-runner.ts';
 import { createNativeNewsReasoner } from '../src/news-analysis/reasoning/company-reasoner.ts';
 import { createFlowReasoner } from '../src/news-analysis/reasoning/flow-reasoner.ts';
 import { extractInventories } from '../src/news-analysis/reasoning/source-signals.ts';
+import { InsightClient } from '../src/news-analysis/retrieval/insight-client.ts';
 import type { SourceUnit } from '../src/news-analysis/retrieval/source-units.ts';
 import { sourceUnits } from '../src/news-analysis/retrieval/source-units.ts';
 import { createHttpService } from './helpers/http-service.ts';
@@ -296,7 +297,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
                 impact: {
                   metric: 'risk',
                   amountBasis: 'qualitative',
-                  economicObjectId: null,
+                  economicObjectHandle: null,
                   evidenceStatus: 'unknown',
                   importance: 2,
                   urgency: 1,
@@ -451,12 +452,24 @@ describe('Flue news agents with the project provider over HTTP', () => {
   });
 
   it('runs a terminating Flue result tool once and preserves source-bound decimal ASTs', async () => {
+    const own = {
+      ...context.news,
+      materialId: 'synthetic-terms',
+      kind: 'company' as const,
+      companyIds: [companyId],
+      text: 'Договор SYNTHETIC-LOT: synthetic own obligation.',
+      contentHash: 'c'.repeat(64),
+    };
+    const groundedInput = { ...input, context: { ...context, materials: [own] } };
     const draft = {
       effectKey: 'synthetic-effect',
       literalObjectRef: 'SYNTHETIC-LOT',
       conclusion: 'Synthetic forecast only.',
       status: 'forecast',
-      sourceRefs: [{ materialId: 'synthetic-news', versionId: 'v1', contentHash: 'a'.repeat(64) }],
+      sourceRefs: [
+        { materialId: 'synthetic-news', versionId: 'v1', contentHash: 'a'.repeat(64) },
+        { materialId: own.materialId, versionId: own.versionId, contentHash: own.contentHash },
+      ],
       calculation: {
         expression: {
           kind: 'multiply',
@@ -464,17 +477,27 @@ describe('Flue news agents with the project provider over HTTP', () => {
           right: { kind: 'value', value: '104' },
         },
         unit: 'RUB',
-        period: 'Synthetic future period',
+        period: '2026',
       },
     };
     const { reasoner, requests } = await adapter({
       drafts: [
         {
           objectHandle: 'o1',
-          assessment: { conditions: [], unknowns: [] },
+          assessment: {
+            conditions: [],
+            unknowns: [],
+            applicability: {
+              status: 'established',
+              basis: 'documented_exposure',
+              explanation: 'Own obligation',
+              assumptions: [],
+              sourceHandles: ['s1'],
+            },
+          },
           question: {
             mechanism: 'input_cost',
-            frame: 'absolute',
+            frame: 'event_only',
             unit: 'RUB',
             targetPeriod: '2026',
             baselinePeriod: null,
@@ -485,18 +508,18 @@ describe('Flue news agents with the project provider over HTTP', () => {
           impact: {
             metric: 'expense_delta',
             amountBasis: 'contract_total',
-            economicObjectId: null,
+            economicObjectHandle: 'e0',
             evidenceStatus: 'supported',
             importance: 3,
             urgency: 2,
             novelty: 3,
           },
-          sourceHandles: ['s0'],
-          calculation: { expression: '150 * 104', unit: 'RUB', period: 'Synthetic future period' },
+          sourceHandles: ['s0', 's1'],
+          calculation: { expression: '150 * 104', unit: 'RUB', period: '2026' },
         },
       ],
     });
-    expect(await reasoner.analyze(input)).toMatchObject([
+    expect(await reasoner.analyze(groundedInput)).toMatchObject([
       {
         literalObjectRef: 'SYNTHETIC-LOT',
         effectKey: 'draft-0',
@@ -617,7 +640,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
           impact: {
             metric: 'risk',
             amountBasis: 'qualitative',
-            economicObjectId: null,
+            economicObjectHandle: null,
             evidenceStatus: 'unknown',
             importance: 2,
             urgency: 2,
@@ -667,7 +690,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       impact: {
         metric: 'risk',
         amountBasis: 'qualitative',
-        economicObjectId: null,
+        economicObjectHandle: null,
         evidenceStatus: 'unknown',
         importance: 2,
         urgency: 2,
@@ -694,12 +717,31 @@ describe('Flue news agents with the project provider over HTTP', () => {
   });
 
   it('leaves duplicate quantified consequences for the final uniqueness guard', async () => {
+    const own = {
+      ...context.news,
+      materialId: 'synthetic-duplicate-terms',
+      kind: 'company' as const,
+      companyIds: [companyId],
+      text: 'Contract DUP-17: synthetic own obligation.',
+      contentHash: 'c'.repeat(64),
+    };
+    const groundedInput = { ...input, context: { ...context, materials: [own] } };
     const amount = {
       objectHandle: 'o0',
-      assessment: { conditions: [], unknowns: [] },
+      assessment: {
+        conditions: [],
+        unknowns: [],
+        applicability: {
+          status: 'established',
+          basis: 'documented_exposure',
+          explanation: 'Own obligation',
+          assumptions: [],
+          sourceHandles: ['s1'],
+        },
+      },
       question: {
         mechanism: 'financing_cost',
-        frame: 'absolute',
+        frame: 'event_only',
         unit: 'RUB',
         targetPeriod: '2026',
         baselinePeriod: null,
@@ -707,12 +749,12 @@ describe('Flue news agents with the project provider over HTTP', () => {
       },
       status: 'forecast',
       conclusion: 'Synthetic calculation.',
-      sourceHandles: ['s0'],
+      sourceHandles: ['s0', 's1'],
       calculation: { expression: '1', unit: 'RUB', period: '2026-11' },
       impact: {
         metric: 'expense_delta',
         amountBasis: 'contract_total',
-        economicObjectId: null,
+        economicObjectHandle: 'e0',
         evidenceStatus: 'supported',
         importance: 2,
         urgency: 2,
@@ -720,7 +762,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       },
     };
     const { reasoner } = await adapter({ drafts: [amount, amount] });
-    const result = await reasoner.analyze(input);
+    const result = await reasoner.analyze(groundedInput);
     expect(result).toHaveLength(2);
     expect(result.map((draft) => draft.effectKey)).toEqual(['draft-0', 'draft-1']);
   });
@@ -762,7 +804,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       impact: {
         metric: 'risk',
         amountBasis: 'qualitative',
-        economicObjectId: null,
+        economicObjectHandle: null,
         evidenceStatus: 'unknown',
         importance: 1,
         urgency: 1,
@@ -789,17 +831,26 @@ describe('Flue news agents with the project provider over HTTP', () => {
   it('lets the model repair a CSV-only conditional claim to unknown before terminating', async () => {
     let validations = 0;
     const insights = await createHttpService(async (request) => {
-      expect(new URL(request.url).pathname).toBe('/internal/analyses/validate-applicability');
       expect(request.headers.get('X-Internal-Secret')).toBe('test-internal-secret');
       const input = await request.json();
-      expect(input.candidates).toHaveLength(1);
-      validations++;
-      return validations === 1
-        ? Response.json(
-            { errorMessage: 'CSV profile is insufficient; preserve unknown' },
-            { status: 422 },
-          )
-        : Response.json({ valid: true });
+      if (new URL(request.url).pathname === '/internal/analyses/validate-applicability') {
+        expect(input.candidates).toHaveLength(1);
+        expect(input.candidates[0].hasCalculation).toBe(false);
+        validations++;
+        return validations === 1
+          ? Response.json(
+              { errorMessage: 'CSV profile is insufficient; preserve unknown' },
+              { status: 422 },
+            )
+          : Response.json({ valid: true });
+      }
+      expect(new URL(request.url).pathname).toBe('/internal/analyses/prepare');
+      return Response.json({
+        drafts: input.drafts.map((draft: Record<string, unknown>) => ({
+          ...draft,
+          expectedPreviousRevisionId: null,
+        })),
+      });
     });
     servers.push(insights);
     vi.stubEnv('INSIGHT_SERVICE_URL', insights.url);
@@ -840,7 +891,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       impact: {
         metric: 'risk',
         amountBasis: 'qualitative',
-        economicObjectId: null,
+        economicObjectHandle: null,
         evidenceStatus: 'conditional',
         importance: 1,
         urgency: 1,
@@ -872,7 +923,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
     });
     expect(saved[0]?.impact?.evidenceStatus).toBe('unknown');
     expect(result.requests).toHaveLength(2);
-    expect(JSON.stringify(result.requests[1])).toContain('CSV');
+    expect(JSON.stringify(result.requests[1])).toContain('INSIGHT_DRAFT_VALIDATION');
     expect(validations).toBe(2);
   });
 
@@ -968,7 +1019,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       impact: {
         metric: 'risk',
         amountBasis: 'qualitative',
-        economicObjectId: null,
+        economicObjectHandle: null,
         evidenceStatus: 'unknown',
         importance: 1,
         urgency: 1,
@@ -1378,6 +1429,176 @@ describe('Flue news agents with the project provider over HTTP', () => {
     );
   }
 
+  function groundedWire() {
+    return {
+      drafts: [
+        {
+          objectHandle: 'o0',
+          question: {
+            mechanism: 'financing_cost',
+            frame: 'event_only',
+            unit: 'RUB',
+            targetPeriod: '2027',
+            baselinePeriod: null,
+            basis: 'annual_run_rate',
+          },
+          assessment: {
+            conditions: [],
+            unknowns: [],
+            applicability: {
+              status: 'established',
+              basis: 'documented_exposure',
+              explanation: 'Own loan',
+              assumptions: [],
+              sourceHandles: ['s1'],
+            },
+          },
+          conclusion: 'Contractual interest delta, not payment or budget',
+          status: 'announced',
+          impact: {
+            metric: 'expense_delta',
+            amountBasis: 'annual_run_rate',
+            economicObjectHandle: 'e0',
+            evidenceStatus: 'supported',
+            importance: 1,
+            urgency: 1,
+            novelty: 1,
+          },
+          sourceHandles: ['s0', 's1'],
+          calculation: { expression: '800000*(0.09-0.08)', unit: 'RUB', period: '2027' },
+        },
+      ],
+    };
+  }
+  function groundedEvidence() {
+    return {
+      ...input,
+      context: {
+        ...context,
+        materials: [
+          {
+            ...context.news,
+            materialId: 'own-credit',
+            kind: 'company' as const,
+            companyIds: [companyId],
+            text: 'Loan CREDIT-42: principal RUB 800000, rate equals index A.',
+            contentHash: 'c'.repeat(64),
+          },
+        ],
+      },
+    };
+  }
+  it('gives a structured object error and accepts one explicit grounded selector correction', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.impact ?? {}, { economicObjectHandle: null });
+    const fixed = groundedWire();
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', fixed);
+    const result = await reasoner.analyze(groundedEvidence());
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('ECONOMIC_OBJECT_BINDING');
+    expect(JSON.stringify(requests[1])).toContain('maximumCorrections');
+    expect(result[0]?.impact?.economicObjectId).toBe('CREDIT-42');
+    expect(result[0]?.literalObjectRef).toBe(`company:${companyId}`);
+    expect(result[0]?.question?.frame).toBe('event_only');
+    expect(JSON.stringify(requests[0])).toContain('economicObjectCatalog');
+    expect(JSON.stringify(requests[0])).toContain('CREDIT-42');
+  });
+  it('counts schema-invalid selectors against the same two-submission budget', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.impact ?? {}, { economicObjectHandle: 'e99' });
+    const call = { name: 'submit_news_analysis', arguments: invalid };
+    const requests = await toolSequence([
+      call,
+      call,
+      call,
+      { name: 'submit_news_analysis', arguments: groundedWire() },
+    ]);
+    await expect(createNativeNewsReasoner().analyze(groundedEvidence())).rejects.toMatchObject({
+      code: 'INVALID_REASONING_RESULT',
+    });
+    expect(requests).toHaveLength(2);
+  });
+  it('does not validate a third result call batched in the same turn', async () => {
+    const prepare = vi
+      .spyOn(InsightClient.prototype, 'prepare')
+      .mockImplementation(async (_request, drafts) =>
+        drafts.map((draft) => ({ ...draft, expectedPreviousRevisionId: null })),
+      );
+    vi.stubEnv('CONTEXT_SERVICE_URL', 'http://127.0.0.1:1');
+    vi.stubEnv('INSIGHT_SERVICE_URL', 'http://127.0.0.1:1');
+    vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
+    const call = { name: 'submit_news_analysis', arguments: groundedWire() };
+    const requests = await toolSequence([[call, call, call]]);
+    try {
+      await expect(createNativeNewsReasoner().analyze(groundedEvidence())).rejects.toMatchObject({
+        code: 'INVALID_REASONING_RESULT',
+      });
+      expect(requests).toHaveLength(1);
+      expect(prepare.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      prepare.mockRestore();
+    }
+  });
+  it('corrects an invented budget to a contractual event delta without relabelling it absolute', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.question ?? {}, {
+      frame: 'budget_delta',
+      baselinePeriod: 'budget:2027',
+    });
+    const { reasoner, requests } = await adapter(
+      invalid,
+      true,
+      'submit_news_analysis',
+      groundedWire(),
+    );
+    expect((await reasoner.analyze(groundedEvidence()))[0]?.question?.frame).toBe('event_only');
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('BUDGET_EVIDENCE');
+  });
+  it('terminates after two invalid financial submissions without a new phase retry', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.impact ?? {}, { economicObjectHandle: null });
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', invalid);
+    await expect(reasoner.analyze(groundedEvidence())).rejects.toMatchObject({
+      code: 'INVALID_REASONING_RESULT',
+    });
+    expect(requests).toHaveLength(2);
+  });
+  it('returns a structured upstream 422 before tool acceptance and validates the correction through prepare', async () => {
+    const calls: unknown[] = [];
+    const server = await createHttpService(async (request) => {
+      expect(new URL(request.url).pathname).toBe('/internal/analyses/prepare');
+      const data = await request.json();
+      calls.push(data);
+      return data.drafts[0].assessment.applicability.status === 'unknown'
+        ? Response.json({ errorMessage: 'synthetic-private-upstream-error' }, { status: 422 })
+        : Response.json({
+            drafts: data.drafts.map((draft: Record<string, unknown>) => ({
+              ...draft,
+              expectedPreviousRevisionId: null,
+            })),
+          });
+    });
+    servers.push(server);
+    vi.stubEnv('CONTEXT_SERVICE_URL', server.url);
+    vi.stubEnv('INSIGHT_SERVICE_URL', server.url);
+    vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.assessment.applicability ?? {}, { status: 'unknown' });
+    const { reasoner, requests } = await adapter(
+      invalid,
+      true,
+      'submit_news_analysis',
+      groundedWire(),
+    );
+    expect((await reasoner.analyze(groundedEvidence()))[0]?.impact?.economicObjectId).toBe(
+      'CREDIT-42',
+    );
+    expect(requests).toHaveLength(2);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('INSIGHT_DRAFT_VALIDATION');
+    expect(JSON.stringify(requests[1])).not.toContain('synthetic-private-upstream-error');
+  });
   it('repairs an unsupported derived result through the real company result tool', async () => {
     const invalid = {
       drafts: [
@@ -1429,7 +1650,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
           impact: {
             metric: 'risk',
             amountBasis: 'qualitative',
-            economicObjectId: null,
+            economicObjectHandle: null,
             evidenceStatus: 'unknown',
             importance: 1,
             urgency: 1,

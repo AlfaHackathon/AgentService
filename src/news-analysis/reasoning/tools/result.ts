@@ -33,6 +33,7 @@ export type AgentTask = {
   sourceHandles: string[];
   questionHandles?: string[];
   serviceTools?: ToolScope;
+  companyScope?: import('../company-result.ts').CompanyResultScope;
 };
 
 export function useResultTool(
@@ -67,6 +68,11 @@ export function useResultTool(
     description: 'Submit the final structured result for this phase and end the turn.',
     input: schema,
     run: async ({ data }) => {
+      if (maxSubmissions && attempts.count >= maxSubmissions) {
+        attempts.failure = `Result validation budget exhausted after ${maxSubmissions} submissions`;
+        saveAttempts(attempts);
+        return { output: attempts.failure, terminate: true };
+      }
       if (maxSubmissions) {
         attempts.count++;
         saveAttempts(attempts);

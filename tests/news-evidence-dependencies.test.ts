@@ -233,7 +233,7 @@ describe('structured evidence dependency consistency', () => {
       impact: {
         metric: 'risk',
         amountBasis: 'qualitative',
-        economicObjectId: null,
+        economicObjectHandle: null,
         evidenceStatus: 'unknown',
         importance: 1,
         urgency: 1,
