@@ -20,7 +20,6 @@ type ApplicationOptions = {
   ready: () => Promise<void>;
   log?: (entry: Record<string, unknown>) => void;
   newsAnalysis?: NewsAnalysisRouteOptions | undefined;
-  insightRouter?: Hono<AppEnv>;
 };
 
 const userMessage = z.strictObject({
@@ -85,18 +84,10 @@ export function createApplication(options: ApplicationOptions) {
   app.use('*', async (c, next) => {
     const path = c.req.path.replace(/^\/agent-service(?=\/|$)/, '');
     if (
-      !(
-        path === '/chats' ||
-        path.startsWith('/chats/') ||
-        path.startsWith('/agents/assistant/') ||
-        path === '/insights' ||
-        path.startsWith('/insights/')
-      )
+      !(path === '/chats' || path.startsWith('/chats/') || path.startsWith('/agents/assistant/'))
     ) {
       return next();
     }
-    if (path === '/insights' || path.startsWith('/insights/'))
-      c.header('Cache-Control', 'private, no-store');
     const userId = readGatewayUserId(c.req.raw.headers);
     if (!userId) throw new HTTPException(401, { message: 'Gateway user context required' });
     c.set('userId', userId);
@@ -106,7 +97,6 @@ export function createApplication(options: ApplicationOptions) {
   if (options.swaggerEnabled) app.route('/swagger', documentationRoutes());
 
   app.route('/chats', createChatRoutes(options.chats));
-  if (options.insightRouter) app.route('/insights', options.insightRouter);
 
   app.use('/agents/assistant/:chatId/*', async (c, next) => {
     const chatId = chatIdSchema.parse(c.req.param('chatId'));

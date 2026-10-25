@@ -103,6 +103,9 @@ afterAll(async () => {
   await stopServer();
   await model?.close();
   await sqlServer?.stop();
+  // pglite-socket queues socket-close handlers with setImmediate and stop() does
+  // not await detach(). Drain those callbacks before destroying the embedded DB.
+  if (sqlServer) await new Promise<void>((resolve) => setImmediate(resolve));
   await closeDatabase?.();
 });
 
@@ -344,132 +347,52 @@ it('serves opt-in Swagger and local assets from the built server without changin
   expect((await fetch(`${baseUrl}/chats`)).status).toBe(401);
 });
 
-it('serves the built public insight feed/detail/history with internal read adapters and no model request', async () => {
-  const companyId = '11111111-1111-4111-8111-111111111111';
-  const asOf = '2026-10-25T00:00:00Z';
-  const source = {
-    materialId: 'synthetic-public-news',
-    versionId: 'v1',
-    contentHash: 'a'.repeat(64),
-  };
-  const revision = {
-    revisionId: 'synthetic-revision',
-    previousRevisionId: null,
-    newsVersionId: 'v1',
-    asOf,
-    createdAt: asOf,
-    conclusion: 'Synthetic unknown company consequence',
-    status: 'unknown',
-    sourceRefs: [source],
-    impact: null,
-    modelExplanation: 'PRIVATE-AUDIT',
-    calculationResult: null,
-  };
-  const item = {
-    id: 'synthetic-question',
-    companyId,
-    newsMaterialId: source.materialId,
-    literalObjectRef: `company:${companyId}`,
-    currentRevision: revision,
-    requiresReassessment: true,
-  };
-  const general = {
-    id: 'synthetic-opaque',
-    companyId,
-    jobId: 'synthetic-job',
-    insightIndex: 0,
-    newsMaterialId: source.materialId,
-    newsVersionId: 'v1',
-    asOf,
-    updatedAt: asOf,
-    textCompleteness: 'lead',
-    companyStatus: 'completed',
-    insight: {
-      title: 'Synthetic public event',
-      conclusion: 'Public general result',
-      mechanism: 'Costs',
-      applicability: [],
-      exclusions: [],
-      unknowns: ['Company exposure unknown'],
-      sourceRefs: [source],
-    },
-  };
-  const paths: string[] = [];
-  const upstream = await createHttpService((incoming) => {
-    const path = new URL(incoming.url).pathname;
-    // Existing process-level news worker polls independently on startup. No jobs are
-    // supplied to it; record only the new read facade's adapters here.
-    if (
-      !path.includes('/internal/read/') &&
-      !path.includes('/internal/companies/by-user/') &&
-      !path.includes('/internal/material-versions/')
-    )
-      return Response.json({ code: 'NO_SYNTHETIC_WORK' }, { status: 404 });
-    expect(incoming.method).toBe('GET');
-    expect(incoming.headers.get('X-Internal-Secret')).toBe('built-read-only-secret');
-    paths.push(path);
-    if (path === `/company-service/internal/companies/by-user/${aliceUserId}`)
-      return Response.json({ id: companyId, name: 'Synthetic company', bankProfileId: null });
-    if (path === '/context-service/internal/material-versions/synthetic-public-news/v1')
-      return Response.json({
-        ...source,
-        sourceId: 'synthetic',
-        kind: 'news',
-        title: 'Synthetic source',
-        text: 'PRIVATE-ORIGINAL-TEXT',
-        knownAt: asOf,
-        companyIds: [],
-        bankProfileIds: [],
-        provenance: {
-          acquisition: 'uploaded',
-          sourceUrl: 'https://example.test/original',
-          retrievedAt: asOf,
-          textCompleteness: 'lead',
-          originVersionId: null,
-          locator: 'PRIVATE-LOCATOR',
-        },
-      });
-    const prefix = `/insight-service/internal/read/companies/${companyId}`;
-    if (path === `${prefix}/personal`)
-      return Response.json({ companyId, items: [item], nextCursor: null });
-    if (path === `${prefix}/personal/synthetic-question`) return Response.json(item);
-    if (path === `${prefix}/personal/synthetic-question/history`)
-      return Response.json({ companyId, items: [revision], nextCursor: null });
-    if (path === `${prefix}/general`)
-      return Response.json({ companyId, items: [general], nextCursor: null });
-    if (path === `${prefix}/general/synthetic-opaque`) return Response.json(general);
-    return Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+it('returns 404 for removed insight reads from the built server without facade upstream or model access', async () => {
+  const reads: string[] = [];
+  const backgroundPaths = new Set([
+    '/insight-service/internal/source-cursor',
+    '/insight-service/internal/news-jobs/claim',
+  ]);
+  const upstream = await createHttpService((request) => {
+    // Existing news worker/source pumps start when domain settings are configured.
+    // Their admission probes are independent of the removed read facade.
+    const path = new URL(request.url).pathname;
+    if (!backgroundPaths.has(path)) reads.push(path);
+    return Response.json({ code: 'REMOVED_ROUTE_ACCESSED_DEPENDENCY' }, { status: 500 });
   });
   const modelCount = model.requests.length;
   try {
     await stopServer();
     await startServer({
-      INTERNAL_SECRET: 'built-read-only-secret',
+      INTERNAL_SECRET: 'built-removal-only-secret',
       COMPANY_SERVICE_URL: `${upstream.url}/company-service`,
       CONTEXT_SERVICE_URL: `${upstream.url}/context-service`,
       INSIGHT_SERVICE_URL: `${upstream.url}/insight-service`,
     });
-    expect((await fetch(`${baseUrl}/insights`)).status).toBe(401);
-    expect(paths).toHaveLength(0);
-    const headers = gatewayHeaders();
-    for (const suffix of [
-      '/insights',
-      '/insights/personal/synthetic-question',
-      '/insights/personal/synthetic-question/history',
-      '/insights?kind=general',
-      '/insights/general/synthetic-opaque',
+    for (const headers of [
+      undefined,
+      gatewayHeaders(),
+      { Authorization: 'Bearer for-gateway-only' },
     ]) {
-      const response = await fetch(`${baseUrl}${suffix}`, { headers });
-      const text = await response.text();
-      expect(response.status, text).toBe(200);
-      expect(response.headers.get('cache-control')).toBe('private, no-store');
-      expect(text).not.toContain('PRIVATE');
+      for (const suffix of [
+        '/insights',
+        '/insights?kind=general',
+        '/insights/personal/synthetic-question',
+        '/insights/general/synthetic-opaque',
+        '/insights/personal/synthetic-question/history',
+      ]) {
+        const response = await fetch(`${baseUrl}${suffix}`, {
+          headers: headers ?? {},
+          redirect: 'manual',
+        });
+        expect(response.status).toBe(404);
+        expect(response.headers.has('location')).toBe(false);
+      }
     }
+    expect((await fetch(`${baseUrl}/chats`)).status).toBe(401);
+    expect((await fetch(`${baseUrl}/chats`, { headers: gatewayHeaders() })).status).toBe(200);
+    expect(reads).toEqual([]);
     expect(model.requests).toHaveLength(modelCount);
-    expect(paths.some((path) => path.includes('embedding') || path.includes('search'))).toBe(false);
-    expect((await fetch(`${baseUrl}/insights?companyId=${companyId}`, { headers })).status).toBe(
-      400,
-    );
   } finally {
     await stopServer();
     await upstream.close();

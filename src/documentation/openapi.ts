@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { createChatSchema, updateChatSchema } from '../chats/schema.ts';
-import { publicCardSchema, publicFeedSchema, publicHistorySchema } from '../insights/schemas.ts';
 import {
   analysisReceiptSchema,
   analysisRequestSchema,
@@ -58,19 +57,6 @@ const internalOperation = <T extends object>(summary: string, rest: T) => ({
   description: 'Service-to-service only. A user Bearer token does not grant internal access.',
   ...rest,
 });
-const insightResponses = (schema: object) => ({
-  '200': response('Scoped read result; Cache-Control: private, no-store', schema),
-  '400': response('Invalid query, repeated parameters or mismatched cursor.'),
-  '401': response('Gateway token rejected or trusted user context missing.'),
-  '403': response('Current company membership required.'),
-  '404': response('Insight not found or exact cited source is outside current permissions.'),
-  '502': response(
-    'Stored read/source contract, hash, knowledge time or evidence mismatch; no successful empty result implied.',
-  ),
-  '503': response(
-    'Dependency unavailable, not configured, or source read budget exceeded; reduce page size for SOURCE_READ_BUDGET.',
-  ),
-});
 const nativeDescription =
   'Flue 2.3.0 native protocol. Prefer @flue/sdk@2.3.0. Offsets/cursors are opaque. An SSE disconnect does not cancel server work. Render visible user/assistant text parts, not reasoning or raw tools.';
 
@@ -92,89 +78,15 @@ export function agentOpenApi() {
       title: 'AgentService API',
       version: 'v1',
       description:
-        'Public chat and current-company insight reads, plus separately secured internal news execution. Documentation does not change access or expose service credentials.',
+        'Public chat and separately secured internal news execution. Documentation does not change access or expose service credentials.',
     },
     servers: [{ url: '/agent-service' }],
     tags: [
       { name: 'Public chat — Bearer via AuthGateway' },
-      { name: 'Public insights — Bearer via AuthGateway' },
       { name: 'Internal — service credential required' },
       { name: 'Operations' },
     ],
     paths: {
-      '/insights': {
-        get: {
-          tags: ['Public insights — Bearer via AuthGateway'],
-          security: publicSecurity,
-          summary: 'Read a bounded current-company insight feed',
-          description:
-            'Company is resolved from current membership. No companyId/personId/asOf input. Private-source cards are omitted; follow nextCursor even after an empty page. exhaustive=false is not a total. Ordering: current revision createdAt DESC, id DESC; general latest permitted completed/partial job per news/version, updatedAt DESC, job id DESC, stored index DESC. Cursors are opaque and bound to company/kind/filters; restart after live updates. GET only; no model or source acquisition.',
-          parameters: [
-            query('kind', { enum: ['personal', 'general'], default: 'personal' }),
-            query('limit', { type: 'integer', minimum: 1, maximum: 20, default: 5 }),
-            query('cursor', { type: 'string', maxLength: 2048 }),
-            query(
-              'status',
-              { type: 'string', maxLength: 100 },
-              'Personal only; persisted status, not a normalized UI enum.',
-            ),
-            query(
-              'mechanism',
-              {
-                type: 'string',
-                enum: [
-                  'financing_cost',
-                  'refinancing_access',
-                  'lease_cost',
-                  'rent_indexation',
-                  'demand',
-                  'input_cost',
-                  'investment',
-                  'liquidity',
-                  'tax',
-                  'supply_capacity',
-                  'labor_cost',
-                  'deposit_income',
-                ],
-              },
-              'Personal only.',
-            ),
-            query('newsMaterialId', { type: 'string', maxLength: 200 }),
-            query(
-              'minImportance',
-              { type: 'integer', minimum: 1, maximum: 5 },
-              'Personal only. Authoritative assessed companyImportance only; old legacy values are not inferred.',
-            ),
-          ],
-          responses: insightResponses(ref('InsightFeed')),
-        },
-      },
-      '/insights/{kind}/{id}': {
-        get: {
-          tags: ['Public insights — Bearer via AuthGateway'],
-          security: publicSecurity,
-          summary: 'Read one permitted personal or general insight',
-          description:
-            'Personal id is the canonical effect/question id; currentRevision.revisionId identifies its revision. General id is an opaque stable stored-job/index reference, not a canonical general revision. General requiresReassessment=null means current freshness is unknown. Exact source hashes, saved knowledge time and current company/bank scope are checked before return. sources contain metadata and nullable safe sourceUrl, never original text. Importance null means not assessed. Indicators are zero or one saved sourced calculations, decimal strings; never compute new metrics or interpret null as zero. No bank-position label is inferred from generated prose.',
-          parameters: [{ ...id('kind'), schema: { enum: ['personal', 'general'] } }, id('id')],
-          responses: insightResponses(ref('InsightCard')),
-        },
-      },
-      '/insights/personal/{id}/history': {
-        get: {
-          tags: ['Public insights — Bearer via AuthGateway'],
-          security: publicSecurity,
-          summary: 'Read bounded personal revision history within current permissions',
-          description:
-            'Newest sequence first; opaque cursor is bound to company and insight. General history is not implemented. Historical source access is rechecked now. Current requiresReassessment conservatively suppresses indicators in history too. No modelExplanation, raw calculation or unqualified numeric result, raw job checkpoints or other-company data.',
-          parameters: [
-            id('id'),
-            query('limit', { type: 'integer', minimum: 1, maximum: 20, default: 10 }),
-            query('cursor', { type: 'string', maxLength: 2048 }),
-          ],
-          responses: insightResponses(ref('InsightHistory')),
-        },
-      },
       '/health': {
         get: {
           tags: ['Operations'],
@@ -543,9 +455,6 @@ export function agentOpenApi() {
             },
           },
         },
-        InsightCard: schema('InsightCard', publicCardSchema),
-        InsightFeed: schema('InsightFeed', publicFeedSchema),
-        InsightHistory: schema('InsightHistory', publicHistorySchema),
         AnalysisRequest: schema('AnalysisRequest', analysisRequestSchema),
         AnalysisReceipt: schema('AnalysisReceipt', analysisReceiptSchema),
         FlowRequest: schema('FlowRequest', flowRequestSchema),

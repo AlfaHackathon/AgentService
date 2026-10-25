@@ -31,7 +31,7 @@ When companyImportance is present and impact exists, the native host sets `impac
 
 Frontend badge uses only score 1..5 from this object, explanation uses rationale. Missing object or null score displays “not assessed”; do not derive it from legacy impact.importance or priority. Respect revision/asOf and outer requiresReassessment; a stale revision's rating is not a fresh reassessment. Evidence links require the same server-side source access checks as other citations.
 
-These REST routes remain INTERNAL and require `X-Internal-Secret`; never put it in frontend code. The public chat remains Bearer→AuthGateway→Agent and can narrate tool results. There is currently NO public insight feed/detail REST facade for cards. That missing public read facade is an explicit frontend integration dependency; this slice does not implement it or claim browser availability.
+These REST routes remain INTERNAL and require `X-Internal-Secret`; never put it in frontend code. The public chat remains Bearer→AuthGateway→Agent and can narrate tool results. Public card reads belong to InsightService; AgentService exposes no REST card facade. See [the breaking cutover map and release gates](public-insight-read.md). The owning public Insight endpoints require their native/gateway checks before release; this Agent source does not claim they are deployed.
 
 ## Storage, OpenAPI, rollout
 
