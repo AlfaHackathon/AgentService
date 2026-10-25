@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { readSql } from '../src/shared/read-sql.ts';
 import type { Sql } from '../src/shared/sql.ts';
+import { closeSocketDatabase } from './helpers/close-socket-database.ts';
 import { createHttpService } from './helpers/http-service.ts';
 import { aliceUserId, bobUserId, gatewayHeaders } from './helpers/identity.ts';
 import { createLlmServer } from './helpers/llm-server.ts';
@@ -27,7 +28,6 @@ async function freePort() {
 }
 
 let database: Sql;
-let sqlServer: PGLiteSocketServer | undefined;
 let databaseUrl: string;
 let closeDatabase: () => Promise<void>;
 let model: Awaited<ReturnType<typeof createLlmServer>>;
@@ -83,7 +83,7 @@ beforeAll(async () => {
   } else {
     const embedded = new PGlite();
     database = embedded;
-    sqlServer = new PGLiteSocketServer({
+    const sqlServer = new PGLiteSocketServer({
       db: embedded,
       host: '127.0.0.1',
       port: await freePort(),
@@ -91,7 +91,7 @@ beforeAll(async () => {
     });
     await sqlServer.start();
     databaseUrl = `postgresql://postgres:postgres@${sqlServer.getServerConn()}/postgres`;
-    closeDatabase = () => embedded.close();
+    closeDatabase = () => closeSocketDatabase(sqlServer);
   }
   model = await createLlmServer();
   port = await freePort();
@@ -102,7 +102,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await stopServer();
   await model?.close();
-  await sqlServer?.stop();
   await closeDatabase?.();
 });
 

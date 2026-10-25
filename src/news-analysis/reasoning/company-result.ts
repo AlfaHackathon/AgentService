@@ -80,7 +80,11 @@ export function resolveCompanyResult(
             typeof proposedQuestion === 'string' &&
             (!priorQuestion || priorQuestion.literal !== object.literal)
           )
-            throw new Error('Unbound question handle');
+            throw new NewsAnalysisError(
+              422,
+              'QUESTION_OBJECT_BINDING',
+              `Question ${proposedQuestion} belongs to a different literal object. Reuse an existing question handle only with its original objectHandle. For the selected new object, submit a new inline question identity (mechanism, frame, unit, targetPeriod, baselinePeriod, basis). Do not reassign the existing question or change its history.`,
+            );
           const question =
             typeof proposedQuestion === 'string' ? priorQuestion?.question : proposedQuestion;
           if (!question) throw new Error('Missing question identity');
