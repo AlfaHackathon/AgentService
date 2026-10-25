@@ -1,5 +1,7 @@
 import type { z } from 'zod';
 import type { materialSchema } from '../news-analysis/contracts/analysis.ts';
+import { validateEvidenceDependencies } from '../news-analysis/contracts/evidence-dependencies.ts';
+import { questionSchema } from '../news-analysis/contracts/questions.ts';
 import { sourceKey } from '../news-analysis/retrieval/source-catalog.ts';
 import type { indicatorAvailabilitySchema, indicatorSchema, StoredRevision } from './schemas.ts';
 
@@ -56,9 +58,19 @@ export function projectIndicators(
     !/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(revision.calculationResult)
   )
     return unavailableIndicators('missing_result');
+  const question = revision.question;
+  const assessment = revision.assessment;
+  if (!question || !assessment) return unavailableIndicators('insufficient_evidence');
+  if (!questionSchema.safeParse(question).success || question.targetPeriod === 'unknown')
+    return unavailableIndicators('unknown_period');
+  if (
+    question.unit !== revision.calculation.unit ||
+    question.targetPeriod !== revision.calculation.period
+  )
+    return unavailableIndicators('insufficient_evidence');
   const status = revision.impact?.evidenceStatus;
   const cited = new Set(revision.sourceRefs.map(sourceKey));
-  const applicability = revision.assessment?.applicability;
+  const applicability = assessment.applicability;
   const documentary = sources.filter(
     (s) =>
       s.kind === 'company' &&
@@ -71,7 +83,43 @@ export function projectIndicators(
     !documentary.length ||
     applicability?.status !== 'established' ||
     applicability.basis !== 'documented_exposure' ||
-    (status !== 'supported' && status !== 'conditional')
+    (status !== 'supported' && status !== 'conditional') ||
+    applicability.sourceRefs.some((r) => !cited.has(sourceKey(r)))
+  )
+    return unavailableIndicators('insufficient_evidence');
+  const objectId = revision.impact?.economicObjectId;
+  if (
+    !objectId?.trim() ||
+    /[\p{Cc}]/u.test(objectId) ||
+    !documentary.some((source) => containsIdentifier(source.text, objectId))
+  )
+    return unavailableIndicators('insufficient_evidence');
+  if (
+    (status === 'conditional' && !applicability.assumptions.length) ||
+    (status === 'supported' &&
+      (applicability.assumptions.length > 0 ||
+        assessment.unknowns.length > 0 ||
+        assessment.conditions.some((c) => c.status !== 'supported'))) ||
+    (revision.publicationClass != null &&
+      revision.publicationClass !== (status === 'supported' ? 'consequence' : 'scenario')) ||
+    assessment.conditions.some(
+      (c) =>
+        c.sourceRefs.some((r) => !cited.has(sourceKey(r))) ||
+        (c.status !== 'unknown' && !c.sourceRefs.length),
+    )
+  )
+    return unavailableIndicators('insufficient_evidence');
+  try {
+    validateEvidenceDependencies(assessment, status);
+  } catch {
+    return unavailableIndicators('insufficient_evidence');
+  }
+  const delta = ['expense_delta', 'revenue_delta', 'cashflow_delta'].includes(
+    revision.impact?.metric ?? '',
+  );
+  if (
+    (question.frame === 'absolute' && delta) ||
+    (question.frame !== 'budget_delta' && question.baselinePeriod?.startsWith('budget:'))
   )
     return unavailableIndicators('insufficient_evidence');
   if (revision.calculation.period === 'unknown' || revision.question?.targetPeriod === 'unknown')
