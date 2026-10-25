@@ -406,7 +406,7 @@ describe('internal news analysis through actual HTTP clients', () => {
     });
     await expect(analyzer.analyze(request)).rejects.toMatchObject({
       status: 422,
-      code: 'UPSTREAM_ERROR',
+      code: 'DUPLICATE_BUSINESS_QUESTION',
     });
     expect(state.writes).toHaveLength(0);
   });

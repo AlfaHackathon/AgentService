@@ -1,5 +1,9 @@
 import * as v from 'valibot';
 import { type EffectDraft, reasoningOutputSchema } from '../contracts/analysis.ts';
+import {
+  businessQuestionKey,
+  validateUniqueBusinessQuestions,
+} from '../contracts/business-questions.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { questionSchema } from '../contracts/questions.ts';
@@ -93,7 +97,8 @@ export function resolveCompanyResult(
               questions.some(
                 (prior) =>
                   prior.literal === object.literal &&
-                  questionIdentity(prior.question) === questionIdentity(question) &&
+                  businessQuestionKey(object.literal, prior.question) ===
+                    businessQuestionKey(object.literal, question) &&
                   !!prior.economicObjectId &&
                   prior.economicObjectId !== economicObjectId,
               ))
@@ -198,6 +203,7 @@ export function resolveCompanyResult(
         },
       ),
     }).drafts;
+    validateUniqueBusinessQuestions(parsed);
     for (const draft of parsed) {
       validateCompanyImportanceEvidence(
         draft,
@@ -270,18 +276,4 @@ function validateFinancialFrame(draft: EffectDraft, sources: Source[]) {
         'A budget delta needs an observed budget_baseline exact excerpt binding budget:<period> and the selected economic object in a cited own document. A contractual pre-event rate is not a budget. Use a justified event_only comparison, or preserve unknown without calculation.',
       );
   }
-}
-
-// Mirrors Insight QuestionIdentityPolicy: field order, qualitative normalization,
-// and missing basis are part of the persisted identity, not model prose.
-function questionIdentity(question: CompanyResultScope['questions'][number]['question']): string {
-  const qualitative = question.frame === 'event_only' && question.unit === 'qualitative';
-  return JSON.stringify([
-    question.mechanism,
-    question.frame,
-    question.unit,
-    qualitative ? 'unknown' : question.targetPeriod,
-    qualitative ? null : question.baselinePeriod,
-    qualitative ? 'qualitative' : (question.basis ?? 'unknown'),
-  ]);
 }
