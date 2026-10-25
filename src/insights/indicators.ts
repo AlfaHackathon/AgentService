@@ -68,6 +68,11 @@ export function projectIndicators(
     question.targetPeriod !== revision.calculation.period
   )
     return unavailableIndicators('insufficient_evidence');
+  if (
+    !question.unit.trim() ||
+    ['unknown', 'qualitative'].includes(question.unit.trim().toLowerCase())
+  )
+    return unavailableIndicators('insufficient_evidence');
   const status = revision.impact?.evidenceStatus;
   const cited = new Set(revision.sourceRefs.map(sourceKey));
   const applicability = assessment.applicability;
