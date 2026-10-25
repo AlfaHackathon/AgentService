@@ -6,6 +6,7 @@ import {
   sourceRefSchema,
 } from '../news-analysis/contracts/analysis.ts';
 import { companyProfileSchema } from '../news-analysis/contracts/flow.ts';
+import { timestampSchema } from '../news-analysis/contracts/timestamps.ts';
 import {
   parseResponse,
   type ServiceClient,
@@ -33,7 +34,15 @@ const searchSchema = z.object({
   exhaustive: z.boolean(),
 });
 
-// Local adapters for existing contracts; no new endpoints or shared package API.
+// This read-only catalog contract is a separately documented ContextService dependency.
+// It searches admitted public news only, without embedding/rerank or URL acquisition.
+const newsSearchSchema = z.object({
+  asOf: timestampSchema,
+  hits: z.array(materialSchema.omit({ text: true })).max(6),
+  exhaustive: z.literal(false),
+});
+
+// Local typed service adapters; see docs/client-assistant-news-contract.md.
 export class AssistantServiceClients {
   constructor(
     readonly company: ServiceClient,
@@ -86,6 +95,15 @@ export class AssistantServiceClients {
         `/internal/material-versions/${encodeURIComponent(materialId)}/${encodeURIComponent(versionId)}`,
       ),
     );
+  }
+
+  async searchNews(query: string, asOf: string) {
+    const payload = await this.context.request(
+      '/internal/news/search',
+      { query, asOf, limit: 6 },
+      true,
+    );
+    return payload === null ? null : parseResponse(newsSearchSchema, payload);
   }
 
   async news(newsMaterialId: string, newsVersionId: string, asOf: string) {

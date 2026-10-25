@@ -118,6 +118,8 @@ describe('real Flue + PostgreSQL adapter + SDK + HTTP model', () => {
         'assistant_company_profile',
         'assistant_search_context',
         'assistant_read_original',
+        'assistant_search_news',
+        'assistant_read_news',
         'assistant_news_insights',
         'assistant_analyze_news',
       ]),

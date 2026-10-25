@@ -1,8 +1,12 @@
 import { z } from 'zod';
 import type { NewsAnalyzer } from '../news-analysis/application/company-analysis.ts';
-import type { AnalysisReceipt, sourceRefSchema } from '../news-analysis/contracts/analysis.ts';
+import type {
+  AnalysisReceipt,
+  materialSchema,
+  sourceRefSchema,
+} from '../news-analysis/contracts/analysis.ts';
 import { NewsAnalysisError } from '../news-analysis/contracts/errors.ts';
-import { instantAfter } from '../news-analysis/contracts/timestamps.ts';
+import { instantAfter, sameInstant } from '../news-analysis/contracts/timestamps.ts';
 import type { AssistantServiceClients } from './service-clients.ts';
 
 type SourceHandle = z.infer<typeof sourceRefSchema> & {
@@ -17,6 +21,8 @@ export type AssistantToolState = {
   outputCharacters: number;
   nextHandle: number;
   sources: SourceHandle[];
+  // Optional for conversations persisted before news discovery was introduced.
+  newsSources?: SourceHandle[];
 };
 export const initialAssistantState = (): AssistantToolState => ({
   asOf: new Date().toISOString(),
@@ -25,6 +31,7 @@ export const initialAssistantState = (): AssistantToolState => ({
   outputCharacters: 0,
   nextHandle: 0,
   sources: [],
+  newsSources: [],
 });
 export type AssistantDependencies = {
   owner: (chatId: string) => Promise<string | null>;
@@ -221,6 +228,108 @@ export class AssistantToolSession {
     return { sourceHandle: handle, original };
   }
 
+  private selectedNews(scope: Awaited<ReturnType<AssistantToolSession['scope']>>, handle: string) {
+    const ref = this.state.newsSources?.find((source) => source.handle === handle);
+    if (!ref || ref.companyId !== scope.companyId)
+      return deny('ASSISTANT_NEWS_HANDLE', 'Search permitted news again for a valid news handle.');
+    return ref;
+  }
+
+  private validateNews(
+    news: Omit<z.infer<typeof materialSchema>, 'text'>,
+    asOf: string,
+    expected?: z.infer<typeof sourceRefSchema>,
+  ) {
+    if (
+      news.kind !== 'news' ||
+      news.companyIds.length ||
+      news.bankProfileIds.length ||
+      instantAfter(news.knownAt, asOf) ||
+      (expected &&
+        (news.materialId !== expected.materialId ||
+          news.versionId !== expected.versionId ||
+          news.contentHash !== expected.contentHash))
+    )
+      return deny(
+        'ASSISTANT_NEWS_SCOPE',
+        'News does not match the permitted public version, hash or time.',
+      );
+  }
+
+  async searchNews(query: string) {
+    const scope = await this.scope();
+    const result = await scope.clients.searchNews(query, scope.asOf);
+    if (!result)
+      return deny(
+        'ASSISTANT_NEWS_SEARCH_UNAVAILABLE',
+        'The admitted news catalog is not available. This is not an empty search result.',
+      );
+    if (!sameInstant(result.asOf, scope.asOf))
+      return deny('ASSISTANT_NEWS_SCOPE', 'News search changed the server snapshot.');
+    // Validate the entire response before admitting any handle or disclosing a title.
+    for (const hit of result.hits) this.validateNews(hit, scope.asOf);
+    const hits = result.hits.map((hit) => {
+      const sources = this.state.newsSources ?? [];
+      const index = sources.findIndex(
+        (s) =>
+          s.companyId === scope.companyId &&
+          s.materialId === hit.materialId &&
+          s.versionId === hit.versionId &&
+          s.contentHash === hit.contentHash,
+      );
+      const existing = sources[index];
+      if (existing) sources.splice(index, 1);
+      const ref = existing ?? {
+        materialId: hit.materialId,
+        versionId: hit.versionId,
+        contentHash: hit.contentHash,
+        companyId: scope.companyId,
+        asOf: scope.asOf,
+        handle: `n${this.state.nextHandle++}`,
+      };
+      sources.push(ref);
+      this.state.newsSources = sources.slice(-24);
+      return {
+        newsHandle: ref.handle,
+        title: hit.title,
+        knownAt: hit.knownAt,
+        publishedAt: hit.publishedAt ?? null,
+        provenance: hit.provenance ?? null,
+        textCompleteness: hit.provenance?.textCompleteness ?? 'unknown',
+      };
+    });
+    return {
+      asOf: scope.asOf,
+      exhaustive: false,
+      hits,
+      instruction:
+        'Candidates from admitted news only. Read assistant_read_news before citing text; lead, excerpt or unknown does not establish a full publication. Search does not start analysis.',
+    };
+  }
+
+  async readNews(handle: string) {
+    const scope = await this.scope();
+    const ref = this.selectedNews(scope, handle);
+    const source = await scope.clients.news(ref.materialId, ref.versionId, ref.asOf);
+    this.validateNews(source, ref.asOf, ref);
+    const { companyIds: _companies, bankProfileIds: _profiles, ...original } = source;
+    return {
+      newsHandle: handle,
+      asOf: ref.asOf,
+      original,
+      textCompleteness: source.provenance?.textCompleteness ?? 'unknown',
+      instruction:
+        'Stored original text is not necessarily the full publication. Preserve provenance and completeness. Analyze this selection only on an explicit user request using newsHandle.',
+    };
+  }
+
+  async analyzeSelectedNews(handle: string, triggerSourceHandle?: string) {
+    const ref = this.state.newsSources?.find((source) => source.handle === handle);
+    if (!ref)
+      return deny('ASSISTANT_NEWS_HANDLE', 'Search permitted news again for a valid news handle.');
+    return this.analyze(ref.materialId, ref.versionId, triggerSourceHandle, handle);
+  }
+
   async effects(newsMaterialId: string, offset = 0, limit = 8) {
     const scope = await this.scope();
     const result = await scope.clients.effects(scope.companyId, newsMaterialId, scope.asOf);
@@ -255,9 +364,16 @@ export class AssistantToolSession {
     };
   }
 
-  async analyze(newsMaterialId: string, newsVersionId: string, triggerSourceHandle?: string) {
+  async analyze(
+    newsMaterialId: string,
+    newsVersionId: string,
+    triggerSourceHandle?: string,
+    newsHandle?: string,
+  ) {
     const scope = await this.scope();
+    const selected = newsHandle ? this.selectedNews(scope, newsHandle) : undefined;
     const news = await scope.clients.news(newsMaterialId, newsVersionId, scope.asOf);
+    this.validateNews(news, selected?.asOf ?? scope.asOf, selected);
     if (
       news.materialId !== newsMaterialId ||
       news.versionId !== newsVersionId ||

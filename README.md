@@ -14,7 +14,10 @@ AgentService выполняет Flue-рассуждение, вызовы инс
 
 Разговорный `ClientAssistantAgent` отдельно подключает `src/client-assistant/tools.ts`:
 `assistant_company_profile`, `assistant_search_context`, `assistant_read_original`,
-`assistant_news_insights`, `assistant_analyze_news`. Tools вызывают существующие
+`assistant_news_insights`, `assistant_analyze_news`, `assistant_search_news`,
+`assistant_read_news`. News search требует отдельного Context catalog endpoint,
+которого нет в проверенном Context master; exact read использует существующий news resolve.
+[Контракт и статус зависимости](docs/client-assistant-news-contract.md). Остальные tools вызывают существующие
 Company/Context/Insight API через типизированные локальные клиенты. Публичный chat HTTP/SSE
 контракт не меняется; новые backend endpoints и shared-package API не добавлены.
 
@@ -23,7 +26,10 @@ Runtime `AgentProps.id` связывается с владельцем в кат
 CompanyService `/internal/companies/by-user/{ownerId}`. Company/time/bank profile задаёт host,
 не модель; отсутствие владельца, membership или конфигурации возвращает явный отказ.
 Группы и ролевые grants не расширяют этот scope. Оригинал читается только по handle из scoped
-поиска с повторной проверкой company/hash/version/knownAt. Внешний web search не подключён.
+поиска с повторной проверкой company/hash/version/knownAt. Внешний web search не подключён. Поиск новостей возвращает company-bound `newsHandle`;
+чтение и выбор для анализа повторно проверяют exact version/hash/public scope/asOf.
+Lead/excerpt/unknown не объявляются полным текстом. `assistant_analyze_news` принимает
+либо newsHandle, либо прежнюю пару newsMaterialId/newsVersionId, без смешивания selectors.
 
 Ручной анализ запускается только по явному запросу пользователя для своей компании и существующей
 публичной версии новости, через прежний single-company `NewsAnalyzer`. Пересмотр по новому
