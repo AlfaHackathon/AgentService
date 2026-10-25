@@ -1,22 +1,16 @@
+import { setImmediate } from 'node:timers/promises';
 import type { PGlite } from '@electric-sql/pglite';
 import type { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { vi } from 'vitest';
 
-type SocketDatabase = Pick<PGLiteSocketServer, 'getStats' | 'stop'> & {
+type SocketDatabase = Pick<PGLiteSocketServer, 'stop'> & {
   db: Pick<PGlite, 'close'>;
 };
 
 export async function closeSocketDatabase(server: SocketDatabase) {
-  // Call after stopping the clients. stop() does not await the socket handlers'
-  // deferred detach callbacks, which still need the WASM database to be alive.
-  await vi.waitFor(
-    () => {
-      const { activeConnections, queuedQueries } = server.getStats();
-      if (activeConnections || queuedQueries)
-        throw new Error('Embedded database clients and queued work have not drained.');
-    },
-    { timeout: 5000, interval: 10 },
-  );
+  // Call after stopping the clients. stop() awaits the net.Server close, but
+  // pglite-socket schedules its socket-close cleanup with setImmediate. Drain
+  // those already queued callbacks while the WASM database is still alive.
   await server.stop();
+  await setImmediate();
   await server.db.close();
 }

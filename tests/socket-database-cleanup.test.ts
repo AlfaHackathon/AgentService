@@ -5,14 +5,24 @@ import { Client } from 'pg';
 import { expect, it, vi } from 'vitest';
 import { closeSocketDatabase } from './helpers/close-socket-database.ts';
 
-it('keeps the embedded database alive until its clients and queued work have drained', async () => {
+it('waits for listener closure and deferred socket cleanup even when handler counts stay stale', async () => {
   const order: string[] = [];
-  const stats = { activeConnections: 1, queuedQueries: 1, maxConnections: 1 };
+  let closeListener: (() => void) | undefined;
   const server = {
-    getStats: () => stats,
-    stop: vi.fn(async () => {
-      order.push('listener');
-    }),
+    // pglite-socket can retain an error-detached handler in this counter.
+    getStats: () => ({ activeConnections: 1, queuedQueries: 0, maxConnections: 1 }),
+    stop: vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          closeListener = () => {
+            order.push('listener');
+            void setImmediate().then(() => {
+              order.push('socket cleanup');
+            });
+            resolve();
+          };
+        }),
+    ),
     db: {
       close: vi.fn(async () => {
         order.push('database');
@@ -20,18 +30,12 @@ it('keeps the embedded database alive until its clients and queued work have dra
     },
   };
   const closing = closeSocketDatabase(server);
-  try {
-    await setImmediate();
-    expect(order).toEqual([]);
-    stats.activeConnections = 0;
-    await setImmediate();
-    expect(order).toEqual([]);
-  } finally {
-    stats.activeConnections = 0;
-    stats.queuedQueries = 0;
-    await closing;
-  }
-  expect(order).toEqual(['listener', 'database']);
+  await setImmediate();
+  expect(order).toEqual([]);
+  if (!closeListener) throw new Error('Missing listener close callback');
+  closeListener();
+  await closing;
+  expect(order).toEqual(['listener', 'socket cleanup', 'database']);
 });
 
 it('drains a real embedded socket client with an open transaction before closing WASM', async () => {
@@ -43,14 +47,7 @@ it('drains a real embedded socket client with an open transaction before closing
   });
   await client.connect();
   await client.query('BEGIN');
-  const closing = closeSocketDatabase(server);
-  try {
-    await setImmediate();
-    expect(db.closed).toBe(false);
-    expect(server.getStats().activeConnections).toBe(1);
-  } finally {
-    await client.end();
-    await closing;
-  }
+  await client.end();
+  await closeSocketDatabase(server);
   expect(db.closed).toBe(true);
 });
