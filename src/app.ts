@@ -14,6 +14,7 @@ export const stopNewsAnalysis = async () => newsAnalysis?.stop?.();
 
 export default mountService(
   createApplication({
+    swaggerEnabled: process.env.SWAGGER_ENABLED === 'true',
     chats: new ChatRepository(pool),
     agentRouter: createAgentRouter(ClientAssistantAgent),
     newsAnalysis,

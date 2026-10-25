@@ -402,3 +402,18 @@ Consumer принимает текущий `NewsEventMessage` WebNewsParserServi
 определяют origin. При отсутствии настройки используются исходные URLs запроса,
 как при локальной HTTP-разработке. Значение должно содержать только HTTP(S) origin
 без credentials, пути, query string или fragment.
+
+## Swagger / OpenAPI
+
+Opt in with `SWAGGER_ENABLED=true` (default disabled, including production).
+UI: `/agent-service/swagger/index.html`; OpenAPI: `/agent-service/swagger/v1/swagger.json`.
+The UI and assets are served locally from the pinned `swagger-ui-dist` production dependency;
+no CDN/online validator is used, and credentials are not persisted by the UI.
+Public chat operations use a user Bearer token through AuthGateway. Do not set client `X-User-*` headers.
+Internal news operations are separately tagged and require `X-Internal-Secret`; user Bearer does not authorize them.
+Never put internal credentials in frontend code. Enabling documentation does not add an insight facade,
+change authentication/CORS, publish a port, or add gateway routes.
+Native send uses a flat JSON body and returns 202 admission. History and SSE are different representations:
+SSE emits `data` arrays plus `control` checkpoints, offsets are opaque, and disconnect does not cancel work.
+Prefer `@flue/sdk@2.3.0` for observation/reconnection; Swagger Try it out is not an SSE UI or domain job monitor.
+Some native parts/result checkpoints remain extensible objects; this spec does not invent a stable card-event API.

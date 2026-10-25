@@ -332,3 +332,14 @@ it('dispatches both company phases through the agents registered in the built ap
     await startServer();
   }
 });
+
+it('serves opt-in Swagger and local assets from the built server without changing chat authentication', async () => {
+  await stopServer();
+  await startServer({ SWAGGER_ENABLED: 'true' });
+  const spec = await fetch(`${baseUrl}/swagger/v1/swagger.json`);
+  expect(spec.status).toBe(200);
+  expect(await spec.json()).toMatchObject({ openapi: '3.1.0' });
+  for (const asset of ['index.html', 'swagger-ui-bundle.js', 'swagger-ui.css'])
+    expect((await fetch(`${baseUrl}/swagger/${asset}`)).status).toBe(200);
+  expect((await fetch(`${baseUrl}/chats`)).status).toBe(401);
+});

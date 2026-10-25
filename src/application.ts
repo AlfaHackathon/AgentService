@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { ChatRepository } from './chats/repository.ts';
 import { type AppEnv, createChatRoutes, readJson } from './chats/routes.ts';
 import { chatIdSchema, InvalidCursorError } from './chats/schema.ts';
+import { documentationRoutes } from './documentation/routes.ts';
 import {
   createNewsAnalysisRoutes,
   type NewsAnalysisRouteOptions,
@@ -13,6 +14,7 @@ import {
 import { readGatewayUserId } from './shared/identity.ts';
 
 type ApplicationOptions = {
+  swaggerEnabled?: boolean;
   chats: ChatRepository;
   agentRouter: Hono;
   ready: () => Promise<void>;
@@ -91,6 +93,8 @@ export function createApplication(options: ApplicationOptions) {
     c.set('userId', userId);
     await next();
   });
+
+  if (options.swaggerEnabled) app.route('/swagger', documentationRoutes());
 
   app.route('/chats', createChatRoutes(options.chats));
 
