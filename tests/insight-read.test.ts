@@ -44,7 +44,10 @@ function material(id: string, kind: 'news' | 'company' | 'market', companyIds: s
   });
 }
 const news = material('news', 'news');
-const own = material('own', 'company', [company]);
+const own = {
+  ...material('own', 'company', [company]),
+  text: 'Synthetic loan L-123 exposure document',
+};
 const ref = ({ materialId, versionId, contentHash }: typeof news) => ({
   materialId,
   versionId,
@@ -73,7 +76,7 @@ function revision() {
     impact: {
       metric: 'expense_delta',
       amountBasis: 'contract_total',
-      economicObjectId: null,
+      economicObjectId: 'L-123',
       evidenceStatus: 'conditional',
       importance: 4,
       urgency: 5,
@@ -509,16 +512,116 @@ describe('optional sourced calculation indicators', () => {
             },
           ];
       }
+      const feed = await f.request();
+      expect(feed.status).toBe(200);
+      expect((await feed.json()).items[0].indicators).toEqual([]);
       const detail = await f.request('/insights/personal/question-1');
       expect(detail.status).toBe(200);
       const body = await detail.json();
       expect(body.indicators).toEqual([]);
       expect(body.indicatorAvailability.reason).toBe(
-        kind.includes('budget') ? 'unknown_baseline' : 'insufficient_evidence',
+        kind.includes('budget') && kind !== 'budget_object_prefix'
+          ? 'unknown_baseline'
+          : 'insufficient_evidence',
       );
       const history = await f.request('/insights/personal/question-1/history');
       expect(history.status).toBe(200);
       expect((await history.json()).items[0].indicators).toEqual([]);
+    },
+  );
+  it.each([
+    'no_question',
+    'unknown_applicability',
+    'missing_object',
+    'absent_object',
+    'unit_mismatch',
+    'period_mismatch',
+    'legacy_period',
+    'absolute_delta',
+    'event_budget',
+    'supported_unknown',
+    'supported_contradicted',
+    'conditional_without_assumptions',
+    'missing_data_supported',
+  ])(
+    'suppresses semantically inconsistent historical %s in feed, detail and history',
+    async (kind) => {
+      const f = fixture();
+      const r = f.item.currentRevision;
+      const q = present(r.question);
+      const impact = present(r.impact);
+      const assessment = present(r.assessment);
+      const applicability = present(assessment.applicability);
+      if (kind === 'no_question') r.question = null;
+      if (kind === 'unknown_applicability') applicability.status = 'unknown';
+      if (kind === 'missing_object') impact.economicObjectId = null;
+      if (kind === 'absent_object') impact.economicObjectId = 'L-999';
+      if (kind === 'unit_mismatch') q.unit = 'USD';
+      if (kind === 'period_mismatch') q.targetPeriod = '2027';
+      if (kind === 'legacy_period') {
+        q.targetPeriod = 'arbitrary historical year';
+        present(r.calculation).period = q.targetPeriod;
+      }
+      if (kind === 'absolute_delta') q.frame = 'absolute';
+      if (kind === 'event_budget') q.baselinePeriod = 'budget:2027';
+      if (kind.startsWith('supported_') || kind === 'missing_data_supported') {
+        impact.evidenceStatus = 'supported';
+        applicability.assumptions = [];
+        r.publicationClass = 'consequence';
+      }
+      if (kind === 'supported_unknown')
+        assessment.unknowns = [
+          { fact: 'Required unknown', query: null, scope: 'company', materialId: null },
+        ];
+      if (kind === 'supported_contradicted')
+        assessment.conditions = [
+          {
+            fact: 'Required contradicted',
+            predicate: 'required',
+            status: 'contradicted',
+            sourceRefs: [ref(own)],
+          },
+        ];
+      if (kind === 'conditional_without_assumptions') applicability.assumptions = [];
+      if (kind === 'missing_data_supported') r.publicationClass = 'missing_data';
+      for (const path of [
+        '/insights',
+        '/insights/personal/question-1',
+        '/insights/personal/question-1/history',
+      ]) {
+        const response = await f.request(path);
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        const card = path.endsWith('question-1') ? body : body.items[0];
+        expect(card.indicators).toEqual([]);
+        expect(card.indicatorAvailability.reason).not.toBe('available');
+      }
+    },
+  );
+  it.each(['supported', 'conditional', 'zero'])(
+    'preserves a grounded event-only %s delta without any budget source',
+    async (kind) => {
+      const f = fixture();
+      const r = f.item.currentRevision;
+      if (kind === 'supported') {
+        present(r.impact).evidenceStatus = 'supported';
+        present(present(r.assessment).applicability).assumptions = [];
+        r.publicationClass = 'consequence';
+      }
+      if (kind === 'zero') r.calculationResult = '0';
+      for (const path of [
+        '/insights',
+        '/insights/personal/question-1',
+        '/insights/personal/question-1/history',
+      ]) {
+        const response = await f.request(path);
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        const card = path.endsWith('question-1') ? body : body.items[0];
+        expect(card.indicatorAvailability.reason).toBe('available');
+        expect(card.indicators[0].value).toBe(kind === 'zero' ? '0' : '12345678901234567890.1234');
+        expect(card.indicators[0].baselinePeriod).toBeNull();
+      }
     },
   );
   it('preserves a proven zero as string and optional comparison baseline', async () => {
