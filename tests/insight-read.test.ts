@@ -535,6 +535,9 @@ describe('optional sourced calculation indicators', () => {
     'missing_object',
     'absent_object',
     'unit_mismatch',
+    'unknown_unit',
+    'qualitative_unit',
+    'blank_unit',
     'period_mismatch',
     'legacy_period',
     'absolute_delta',
@@ -557,6 +560,11 @@ describe('optional sourced calculation indicators', () => {
       if (kind === 'missing_object') impact.economicObjectId = null;
       if (kind === 'absent_object') impact.economicObjectId = 'L-999';
       if (kind === 'unit_mismatch') q.unit = 'USD';
+      if (kind === 'unknown_unit' || kind === 'qualitative_unit' || kind === 'blank_unit') {
+        q.unit =
+          kind === 'unknown_unit' ? 'unknown' : kind === 'qualitative_unit' ? 'qualitative' : '   ';
+        present(r.calculation).unit = q.unit;
+      }
       if (kind === 'period_mismatch') q.targetPeriod = '2027';
       if (kind === 'legacy_period') {
         q.targetPeriod = 'arbitrary historical year';
