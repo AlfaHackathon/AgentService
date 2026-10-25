@@ -3,6 +3,7 @@ import {
   analysisReceiptSchema,
   companyImportanceSchema,
   draftSchema,
+  responseCalculationSchema,
   sourceRefSchema,
 } from '../news-analysis/contracts/analysis.ts';
 import { newsPlanSchema } from '../news-analysis/contracts/flow.ts';
@@ -32,8 +33,12 @@ export const historyQuerySchema = z.strictObject({
   cursor: z.string().max(2048).optional(),
 });
 export const insightIdSchema = id;
+// Preserve historical cards even when a legacy calculation has an unknown unit.
+// The calculation remains internal; indicator projection validates its dimensions.
 export const storedRevisionSchema =
-  analysisReceiptSchema.shape.effects.element.shape.currentRevision;
+  analysisReceiptSchema.shape.effects.element.shape.currentRevision.extend({
+    calculation: responseCalculationSchema.extend({ unit: z.string() }).nullable().optional(),
+  });
 export const personalReadSchema = z.object({
   id,
   companyId: z.uuid(),
