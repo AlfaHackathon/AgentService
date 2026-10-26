@@ -61,14 +61,14 @@ describe('bounded internal parser read', () => {
       Response.json({
         ...dto,
         textCompleteness: 'full',
-        url: 'https://ignored.test',
+        url: 'https://publisher.example.test/news/123',
         materialId: 'not-authoritative',
       }),
     );
     const result = await new ParserNewsClient(base, 'synthetic-secret', fetcher).read(reference);
-    expect(result).toEqual(legacy);
+    expect(result).toEqual({ ...legacy, sourceUrl: 'https://publisher.example.test/news/123' });
     expect(result).not.toHaveProperty('parserNewsId');
-    expect(result).not.toHaveProperty('sourceUrl');
+    expect(result.textCompleteness).toBe('lead');
     expect(fetcher).toHaveBeenCalledWith(
       `${base}/internal/news/${id}`,
       expect.objectContaining({
@@ -78,6 +78,34 @@ describe('bounded internal parser read', () => {
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+  it.each([undefined, null])(
+    'keeps absent URL %s absent without deriving one from an ID',
+    async (url) => {
+      const result = await new ParserNewsClient(base, 'synthetic-secret', async () =>
+        Response.json({ ...dto, url }),
+      ).read(reference);
+      expect(result).toEqual(legacy);
+      expect(result).not.toHaveProperty('sourceUrl');
+    },
+  );
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,unsafe',
+    'file:///private',
+    'ftp://publisher.example.test/news',
+    'https://user:password@publisher.example.test/news',
+    '/news/123',
+    'https:publisher.example.test',
+    ' https://publisher.example.test/news',
+    'https://publisher.example.test/ne\nws',
+    'https://publisher.example.test/a\\b',
+  ])('rejects an unsafe owner URL %s without retry or admission', async (url) => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ ...dto, url }));
+    await expect(
+      new ParserNewsClient(base, 'synthetic-secret', fetcher).read(reference),
+    ).rejects.toMatchObject({ status: 422, code: 'PARSER_NEWS_CONTRACT' });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
   it('permits serializer case differences while retaining the event source spelling for stable admission identity', async () => {
     const result = await new ParserNewsClient(base, 'synthetic-secret', async () =>
