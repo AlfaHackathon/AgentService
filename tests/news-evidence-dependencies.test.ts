@@ -217,6 +217,7 @@ describe('structured evidence dependency consistency', () => {
       sourceHandles: ['s0'],
     }));
     const native = {
+      category: null,
       objectHandle: 'o0',
       assessment: { conditions, unknowns: assessment.unknowns },
       question: {

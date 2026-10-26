@@ -101,6 +101,7 @@
   "rawResult": {
     "drafts": [
       {
+        "category": null,
         "objectHandle": "o0",
         "question": {
           "mechanism": "financing_cost",
@@ -176,6 +177,7 @@
         "sourceHandles": ["s0", "s1"]
       },
       {
+        "category": null,
         "objectHandle": "o0",
         "question": {
           "mechanism": "financing_cost",

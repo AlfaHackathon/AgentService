@@ -26,6 +26,7 @@ it('exposes an explicitly documented English loan as a selectable object', () =>
 });
 it('does not accept an unbound null economic object in a monetary tool result', () => {
   const draft = {
+    category: null,
     objectHandle: 'o0',
     assessment: { conditions: [], unknowns: [] },
     question: {
@@ -83,6 +84,7 @@ function wire() {
   return {
     drafts: [
       {
+        category: null,
         objectHandle: 'o0',
         assessment: {
           applicability: {
