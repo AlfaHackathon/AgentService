@@ -31,6 +31,7 @@ export function createConfiguredNewsAnalysis(
     COMPANY_SERVICE_URL,
   } = settings.data;
   const analyzer = new NewsAnalyzer({
+    companies: new CompanyClient(COMPANY_SERVICE_URL, secret),
     context: new ContextClient(CONTEXT_SERVICE_URL, secret),
     insights: new InsightClient(INSIGHT_SERVICE_URL, secret),
     reasoner: createNativeNewsReasoner(environment),

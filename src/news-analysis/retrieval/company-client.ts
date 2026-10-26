@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { type FlowRequest, groupExpansionSchema, segmentSchema } from '../contracts/flow.ts';
+import {
+  companyProfileSchema,
+  type FlowRequest,
+  groupExpansionSchema,
+  segmentSchema,
+} from '../contracts/flow.ts';
 import { sourceChangeSchema } from '../contracts/source-changes.ts';
 import { parseResponse, ServiceClient } from '../transport/http/service-client.ts';
 
@@ -7,6 +12,16 @@ export class CompanyClient {
   readonly http: ServiceClient;
   constructor(url: string, secret: string, fetcher = fetch) {
     this.http = new ServiceClient(url, secret, fetcher);
+  }
+  async profile(companyId: string, asOf: string) {
+    return parseResponse(
+      companyProfileSchema.nullable(),
+      await this.http.request(
+        `/internal/knowledge/companies/${companyId}?${new URLSearchParams({ asOf })}`,
+        undefined,
+        true,
+      ),
+    );
   }
   async select(request: FlowRequest, queries: string[], previousCompanyIds: string[]) {
     return parseResponse(
