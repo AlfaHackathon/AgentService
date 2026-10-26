@@ -16,22 +16,32 @@ export function claimFromQuote(
   conclusion: string,
   quote: string | null | undefined,
   calculation: { unit: string; period: string } | undefined,
+  title?: string | null,
 ) {
   if (quote == null) return undefined;
   const invalid = (code: string) =>
     new NewsAnalysisError(
       422,
       code,
-      'Provide one exact decimal amount and currency span from conclusion, matching the explicit calculation unit and period; otherwise use qualitative narrative.',
+      'Provide one exact decimal amount and currency span from title or conclusion, matching the explicit calculation unit and period; otherwise use qualitative narrative.',
     );
   if (!calculation) throw invalid('CONCLUSION_CLAIM_WITHOUT_CALCULATION');
-  const offset = conclusion.indexOf(quote);
-  if (!quote || quote.length > 200 || offset < 0 || conclusion.indexOf(quote, offset + 1) >= 0)
-    throw invalid('CONCLUSION_CLAIM_INVALID_QUOTE');
-  const before = conclusion.slice(0, offset).match(/.$/su)?.[0] ?? '';
-  const after = conclusion.slice(offset + quote.length).match(/^./su)?.[0] ?? '';
-  if (/[\p{L}\p{N}.,+−-]/u.test(before) || /[\p{L}\p{N}]/u.test(after))
-    throw invalid('CONCLUSION_CLAIM_INVALID_QUOTE');
+  if (!quote || quote.length > 200) throw invalid('CONCLUSION_CLAIM_INVALID_QUOTE');
+  const texts = (title == null ? [conclusion] : [conclusion, title]).filter((text) =>
+    text.includes(quote),
+  );
+  if (!texts.length) throw invalid('CONCLUSION_CLAIM_INVALID_QUOTE');
+  for (const text of texts) {
+    const offset = text.indexOf(quote);
+    const before = text.slice(0, offset).match(/.$/su)?.[0] ?? '';
+    const after = text.slice(offset + quote.length).match(/^./su)?.[0] ?? '';
+    if (
+      text.indexOf(quote, offset + 1) >= 0 ||
+      /[\p{L}\p{N}.,+−-]/u.test(before) ||
+      /[\p{L}\p{N}]/u.test(after)
+    )
+      throw invalid('CONCLUSION_CLAIM_INVALID_QUOTE');
+  }
   const match =
     /^([+-]?(?:[0-9]+|[0-9]{1,3}(?:[ \u00a0\u202f][0-9]{3})+)(?:\.[0-9]+)?)[ \u00a0\u202f]*([A-Z]{3}|₽|руб\.)$/u.exec(
       quote,
@@ -58,14 +68,26 @@ const conclusionCodes = new Set([
   'CONCLUSION_CLAIM_PERIOD_MISMATCH',
   'CONCLUSION_UNBOUND_NUMBER',
 ]);
+const titleCodes = new Set([
+  'TITLE_REQUIRED',
+  'TITLE_INVALID',
+  'TITLE_NUMERIC_REQUIRES_CALCULATION',
+]);
 
 // Only agreed machine codes cross the model boundary; title suffixes may contain private data.
-export function conclusionClaimError(title: string) {
-  const code = title.split(/[:\s]/u, 1)[0];
-  if (!code || !conclusionCodes.has(code)) return undefined;
+export function narrativeValidationError(errorTitle: string) {
+  const code = errorTitle.split(/[:\s]/u, 1)[0];
+  if (!code) return undefined;
+  if (titleCodes.has(code))
+    return {
+      code,
+      message:
+        'Provide a short grounded qualitative title without opaque IDs. Without an explicit calculation avoid numbers, currency and scales. Preserve the narrative and unknowns.',
+    };
+  if (!conclusionCodes.has(code)) return undefined;
   return {
     code,
     message:
-      'Conclusion claim rejected. Bind an exact decimal amount+currency quote to the calculation result, unit and period; otherwise use qualitative text without numbers. Preserve unknowns.',
+      'Title/conclusion claim rejected. Bind an exact decimal amount+currency quote to the calculation result, unit and period; otherwise use qualitative text without numbers. Preserve unknowns.',
   };
 }

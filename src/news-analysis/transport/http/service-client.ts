@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { conclusionClaimError } from '../../contracts/calculation-claim.ts';
+import { narrativeValidationError } from '../../contracts/calculation-claim.ts';
 import { type AnalysisErrorStatus, NewsAnalysisError } from '../../contracts/errors.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
@@ -94,21 +94,23 @@ export class ServiceClient {
         const payload: unknown = await response.json();
         if (!response.ok) {
           const problem = upstreamErrorSchema.safeParse(payload);
-          const conclusion = problem.success
-            ? (conclusionClaimError(problem.data.code) ??
-              conclusionClaimError(problem.data.message))
+          const narrative = problem.success
+            ? (narrativeValidationError(problem.data.code) ??
+              narrativeValidationError(problem.data.message))
             : undefined;
-          const unknownConclusion =
+          const unknownNarrative =
             problem.success &&
-            !conclusion &&
+            !narrative &&
             (problem.data.code.startsWith('CONCLUSION_') ||
-              problem.data.message.startsWith('CONCLUSION_'));
+              problem.data.message.startsWith('CONCLUSION_') ||
+              problem.data.code.startsWith('TITLE_') ||
+              problem.data.message.startsWith('TITLE_'));
           throw new NewsAnalysisError(
             publicUpstreamStatus(response.status),
-            conclusion?.code ??
-              (problem.success && !unknownConclusion ? problem.data.code : 'UPSTREAM_ERROR'),
-            conclusion?.message ??
-              (problem.success && !unknownConclusion
+            narrative?.code ??
+              (problem.success && !unknownNarrative ? problem.data.code : 'UPSTREAM_ERROR'),
+            narrative?.message ??
+              (problem.success && !unknownNarrative
                 ? problem.data.message
                 : 'Upstream service rejected the request'),
           );

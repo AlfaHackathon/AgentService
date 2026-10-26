@@ -9,6 +9,7 @@ import { validateCalculationQuestion } from '../contracts/calculation-question.t
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { validateFinalCalculations } from '../contracts/final-calculation.ts';
+import { validateTitle } from '../contracts/insight-title.ts';
 import type { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog, selectedEconomicObject } from '../retrieval/economic-objects.ts';
 import type { ObjectBinding, Source } from '../retrieval/source-catalog.ts';
@@ -93,10 +94,12 @@ export function resolveCompanyResult(
           const question =
             typeof proposedQuestion === 'string' ? priorQuestion?.question : proposedQuestion;
           if (!question) throw new Error('Missing question identity');
+          validateTitle(draft.title);
           const calculationClaim = claimFromQuote(
             draft.conclusion,
             calculationClaimQuote,
             calculation,
+            draft.title,
           );
           const economicObjectId = selectedEconomicObject(
             impact.economicObjectHandle,

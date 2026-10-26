@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { calculationClaimSchema } from './calculation-claim.ts';
 import { insightCategorySchema } from './category.ts';
+import { maximumTitleLength } from './insight-title.ts';
 import { mechanisms, questionSchema } from './questions.ts';
 import { timestampSchema } from './timestamps.ts';
 
@@ -196,6 +197,7 @@ export const companyImportanceSchema = z
   });
 
 export const draftSchema = z.strictObject({
+  title: z.string().max(maximumTitleLength).nullable().optional(),
   category: insightCategorySchema.nullable().optional(),
   companyImportance: companyImportanceSchema.optional(),
   question: questionSchema.optional(),
@@ -290,6 +292,7 @@ export const contextBundleSchema = z.object({
 export type ContextBundle = z.infer<typeof contextBundleSchema>;
 
 const revisionSchema = z.object({
+  title: z.string().max(maximumTitleLength).nullable().optional(),
   category: insightCategorySchema.nullable().optional(),
   companyImportance: companyImportanceSchema.nullable().optional(),
   publicationClass: z

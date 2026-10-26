@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import type { EffectDraft } from '../contracts/analysis.ts';
 import { insightCategories } from '../contracts/category.ts';
+import { maximumTitleLength } from '../contracts/insight-title.ts';
 import { mechanisms, periodPattern } from '../contracts/questions.ts';
 
 const text = (maximum: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(maximum));
@@ -107,6 +108,7 @@ export const roleResultSchema = v.strictObject({
 
 type Assessment = NonNullable<EffectDraft['assessment']>;
 export type NativeCompanyDraft = {
+  title?: string | null | undefined;
   category: (typeof insightCategories)[number] | null;
   companyImportance?:
     | { score: number | null; rationale: string; evidenceSourceHandles: string[] }
@@ -166,6 +168,7 @@ export function companyResultSchema(
       v.array(
         v.strictObject({
           category: nativeCategorySchema,
+          title: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(maximumTitleLength)))),
           objectHandle: v.picklist(objectHandles),
           assessment: v.strictObject({
             applicability: v.optional(
@@ -212,7 +215,7 @@ export function companyResultSchema(
           question: v.pipe(
             questionHandles.length ? v.union([v.picklist(questionHandles), identity]) : identity,
             v.description(
-              'Reuse a handle only for its original object; otherwise submit a new inline question. Preserve history.',
+              'Same object: reuse its handle; otherwise new question. Preserve history.',
             ),
           ),
           conclusion: v.pipe(
@@ -287,7 +290,7 @@ export function companyResultSchema(
               period: v.pipe(
                 text(1000),
                 v.description(
-                  'Must exactly match question.targetPeriod; unknown period: omit calculation. Final quantitative review needs its own complete calculation; never copy the proposal.',
+                  'Match question.targetPeriod exactly; unknown: omit calculation. Final review needs its own calculation, never a copied proposal.',
                 ),
               ),
             }),
