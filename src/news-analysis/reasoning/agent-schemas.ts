@@ -271,7 +271,12 @@ export function companyResultSchema(
             v.strictObject({
               expression: text(2000),
               unit: text(64),
-              period: text(1000),
+              period: v.pipe(
+                text(1000),
+                v.description(
+                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. If the required period is unknown, omit calculation.',
+                ),
+              ),
             }),
           ),
         }),

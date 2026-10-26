@@ -4,6 +4,7 @@ import {
   businessQuestionKey,
   validateUniqueBusinessQuestions,
 } from '../contracts/business-questions.ts';
+import { validateCalculationQuestion } from '../contracts/calculation-question.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { questionSchema } from '../contracts/questions.ts';
@@ -209,6 +210,7 @@ export function resolveCompanyResult(
     }).drafts;
     validateUniqueBusinessQuestions(parsed);
     for (const draft of parsed) {
+      validateCalculationQuestion(draft);
       validateCompanyImportanceEvidence(
         draft,
         sources.filter((s) => s.kind === 'company' && s.companyIds.includes(companyId)),

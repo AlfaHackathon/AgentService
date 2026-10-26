@@ -727,7 +727,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
       materialId: 'synthetic-duplicate-terms',
       kind: 'company' as const,
       companyIds: [companyId],
-      text: 'Contract DUP-17: synthetic own obligation.',
+      text: 'Contract DUP-17: synthetic own obligation for 2026-11.',
       contentHash: 'c'.repeat(64),
     };
     const groundedInput = { ...input, context: { ...context, materials: [own] } };
@@ -748,7 +748,7 @@ describe('Flue news agents with the project provider over HTTP', () => {
         mechanism: 'financing_cost',
         frame: 'event_only',
         unit: 'RUB',
-        targetPeriod: '2026',
+        targetPeriod: '2026-11',
         baselinePeriod: null,
         basis: 'contract_total',
       },
@@ -1616,6 +1616,78 @@ describe('Flue news agents with the project provider over HTTP', () => {
       },
     };
   }
+  it('returns a correctable period mismatch before accepting the tool and preserves the explicit model correction', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.calculation ?? {}, { period: '2027-01-01/2028-01-01' });
+    Object.assign(invalid.drafts[0]?.impact ?? {}, { amountBasis: 'contract_total' });
+    const corrected = groundedWire();
+    Object.assign(corrected.drafts[0]?.impact ?? {}, { amountBasis: 'contract_total' });
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', corrected);
+    const result = await reasoner.analyze(groundedEvidence());
+    expect(requests).toHaveLength(2);
+    const feedback = JSON.stringify(requests[1]);
+    expect(feedback).toContain('CALCULATION_QUESTION_MISMATCH');
+    expect(feedback).toContain('2027-01-01/2028-01-01');
+    expect(feedback).toContain('maximumCorrections');
+    expect(feedback).toContain('422');
+    expect(result[0]).toMatchObject({
+      question: { targetPeriod: '2027', baselinePeriod: null },
+      calculation: { period: '2027' },
+      impact: { amountBasis: 'contract_total' },
+    });
+    expect(invalid.drafts[0]?.calculation.period).toBe('2027-01-01/2028-01-01');
+  });
+  it('stops after two period mismatches without accepting a tool result or starting another phase', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.calculation ?? {}, { period: '2027-01-01/2028-01-01' });
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', invalid);
+    await expect(reasoner.analyze(groundedEvidence())).rejects.toMatchObject({
+      code: 'INVALID_REASONING_RESULT',
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[1])).toContain('CALCULATION_QUESTION_MISMATCH');
+  });
+  it('allows a model to preserve an unknown period by withdrawing the calculation instead of inventing a date', async () => {
+    const invalid = groundedWire();
+    Object.assign(invalid.drafts[0]?.calculation ?? {}, { period: '2027-01-01/2028-01-01' });
+    const value = groundedWire().drafts[0];
+    if (!value) throw new Error('Missing fixture draft');
+    const { calculation: _calculation, ...withoutCalculation } = value;
+    const unknowns = [
+      {
+        id: 'period',
+        fact: 'Exact calculation period is not established',
+        query: null,
+        scope: 'company',
+        materialId: null,
+      },
+    ];
+    const corrected = {
+      drafts: [
+        {
+          ...withoutCalculation,
+          status: 'unknown',
+          question: {
+            ...value.question,
+            unit: 'qualitative',
+            targetPeriod: 'unknown',
+            basis: 'qualitative',
+          },
+          impact: { ...value.impact, economicObjectHandle: null, evidenceStatus: 'unknown' },
+          assessment: { ...value.assessment, unknowns },
+        },
+      ],
+    };
+    const { reasoner, requests } = await adapter(invalid, true, 'submit_news_analysis', corrected);
+    const result = await reasoner.analyze(groundedEvidence());
+    expect(requests).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      status: 'unknown',
+      question: { unit: 'qualitative', targetPeriod: 'unknown', baselinePeriod: null },
+      assessment: { unknowns },
+    });
+    expect(result[0]).not.toHaveProperty('calculation');
+  });
   it('gives a structured object error and accepts one explicit grounded selector correction', async () => {
     const invalid = groundedWire();
     Object.assign(invalid.drafts[0]?.impact ?? {}, { economicObjectHandle: null });
