@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { sourceUrlSchema } from '../contracts/source-url.ts';
 import { instantAfter, timestampSchema } from '../contracts/timestamps.ts';
 import { ServiceClient } from '../transport/http/service-client.ts';
 
@@ -9,12 +10,13 @@ const stored = z.object({
   title: z.string(),
   text: z.string(),
   publishedAt: timestampSchema,
+  url: sourceUrlSchema.nullish(),
 });
 const tass = z.object({
   externalId: z.string(),
   title: z.string(),
   lead: z.string().nullable(),
-  url: z.url(),
+  url: sourceUrlSchema,
   publishedAt: timestampSchema,
 });
 
@@ -49,7 +51,7 @@ export class ExternalNewsClient {
             .array(stored)
             .max(100)
             .parse(payload)
-            .map((i) => ({ ...i, sourceUrl: null }));
+            .map(({ url, ...i }) => ({ ...i, sourceUrl: url ?? null }));
     return {
       status: 'lead_observations' as const,
       observedAt,
