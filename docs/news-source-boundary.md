@@ -1,5 +1,7 @@
 # Контракт внешних материалов
 
+Новый Kafka ID adapter по parser `f20738c` описан отдельно: [Kafka reference → admission](kafka-parser-news-id.md). Таблица ниже фиксирует исторический контракт `558025d`; поиск discovery и новый Kafka admission имеют разные пределы.
+
 Адаптер AgentService использует перечисленные ниже методы WebNewsParserService.
 
 ## Уже существующий контракт
