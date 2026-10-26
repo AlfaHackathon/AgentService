@@ -74,5 +74,5 @@ export function parseNewsKafkaEvent(value: Buffer | null) {
 export type AdmittedNewsEvent = Exclude<
   ReturnType<typeof parseNewsKafkaEvent>,
   ParserNewsReference
->;
+> & { sourceUrl?: string };
 export type ResolveParserNews = (reference: ParserNewsReference) => Promise<AdmittedNewsEvent>;

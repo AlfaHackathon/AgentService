@@ -16,6 +16,7 @@ const dto = {
   title: 'Synthetic news',
   text: 'Synthetic saved lead',
   publishedAt: '2026-10-25T00:00:00Z',
+  url: 'https://publisher.example.test/news/123?from=feed#original',
 };
 const secret = 'synthetic-adapter-only';
 const parserUrl = 'http://parser.test/news-parser-service';
@@ -71,7 +72,12 @@ it('resolves reference -> exact Context admission -> durable job before ack; sta
     if (url === `${contextUrl}/internal/news/admit`) {
       sequence.push('context.admit');
       expect(init?.method).toBe('POST');
-      expect(JSON.parse(String(init?.body))).toEqual({ ...dto, textCompleteness: 'lead' });
+      const { url: sourceUrl, ...news } = dto;
+      expect(JSON.parse(String(init?.body))).toEqual({
+        ...news,
+        sourceUrl,
+        textCompleteness: 'lead',
+      });
       return Response.json({
         newsMaterialId: 'context-owned-material',
         newsVersionId: 'context-owned-version',
