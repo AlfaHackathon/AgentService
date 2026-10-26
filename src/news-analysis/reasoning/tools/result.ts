@@ -10,6 +10,7 @@ import type * as v from 'valibot';
 import type { SignalInventory } from '../../contracts/signals.ts';
 import type { SourceUnit } from '../../retrieval/source-units.ts';
 import type { ToolScope } from '../../retrieval/tool-evidence.ts';
+import { exhaustedValidation } from './validation-feedback.ts';
 
 export type AgentTask = {
   signalUnits?: SourceUnit[];
@@ -83,7 +84,9 @@ export function useResultTool(
         await validate?.(result);
       } catch (error) {
         if (!maxSubmissions || attempts.count < maxSubmissions) throw error;
-        attempts.failure = `Result validation budget exhausted after ${maxSubmissions} submissions`;
+        attempts.failure =
+          exhaustedValidation(name, error, maxSubmissions) ??
+          `Result validation budget exhausted after ${maxSubmissions} submissions`;
         saveAttempts(attempts);
         return { output: attempts.failure, terminate: true };
       }

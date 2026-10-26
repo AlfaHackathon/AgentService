@@ -160,6 +160,7 @@ export type RoleGroup = {
     unrevisedEffectIds: string[];
     emptyCompanyIds: string[];
     partialContextCompanyIds: string[];
+    unassessedCompanyIds?: string[] | undefined;
     aggregationRuleConfirmed: boolean;
   };
   totals: {

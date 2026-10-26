@@ -1,0 +1,540 @@
+{
+  "provenance": "Wholly synthetic exact retained company-final input and submissions; no original HTTP options retained.",
+  "originalFixtureSha256": "012ff223846e07081f09e2163b8f737191789bc6e1be59fba4012bd46498b199",
+  "nativeInput": {
+    "request": {
+      "companyId": "d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+      "newsMaterialId": "news-e66024b1622db4596916ab13fa101c5840dda0e3",
+      "newsVersionId": "v-8808d6d8139c3975b17fc3889a57f69bc3707f53",
+      "asOf": "2026-10-26T11:36:53.477244+00:00",
+      "retrievalQueries": [
+        "floating-rate loan explicitly indexed to benchmark contractual reset schedule margin floors caps hedging borrower interest expense impact",
+        "corporate debt benchmark index exposure floating rate loan agreements interest cost repricing conditions"
+      ],
+      "retrievalLimit": 4,
+      "mechanisms": ["financing_cost"]
+    },
+    "context": {
+      "news": {
+        "materialId": "news-e66024b1622db4596916ab13fa101c5840dda0e3",
+        "versionId": "v-8808d6d8139c3975b17fc3889a57f69bc3707f53",
+        "sourceId": "synthetic-contextfix-live-attempt9",
+        "kind": "news",
+        "title": "Synthetic FixtureBench-NewA-C3D06D85 increase from 12 percent to 16 percent effective 1 January 2027",
+        "text": "WHOLLY SYNTHETIC PUBLIC TEST NEWS. The invented named index FixtureBench-NewA-C3D06D85 rises from 12 percent per annum to 16 percent per annum effective 2027-01-01 and remains at 16 percent throughout 2027. This is an invented scenario, not a claim about a real market index or an actual company outcome. The stated change concerns only FixtureBench-NewA-C3D06D85. A benchmark increase can raise contractual interest costs on floating-rate loans explicitly indexed to that benchmark, according to each contract reset schedule, principal, margin, floors, caps, accrual convention and hedges. Differently named or unidentified reference indexes are not established as the same index by this publication. Fixed contractual rates do not automatically reprice. A benchmark announcement alone does not establish actual interest payment or any company-wide result. The publication gives no company balances, portfolio totals or company-specific forecasts.",
+        "knownAt": "2026-10-26T11:36:53.477244+00:00",
+        "publishedAt": "2026-10-26T11:36:53.477244+00:00",
+        "provenance": {
+          "acquisition": "event_payload",
+          "sourceUrl": null,
+          "retrievedAt": "2026-10-26T11:36:53.477244+00:00",
+          "textCompleteness": "full",
+          "originVersionId": null,
+          "locator": "contextfix-live-attempt9-20261026T113655Z"
+        },
+        "correctsVersionId": null,
+        "companyIds": [],
+        "bankProfileIds": [],
+        "contentHash": "3efb86743b0fbe64805f61019da8a66e52b8a9bd1a864117c4425aed48bbff83"
+      },
+      "materials": [
+        {
+          "materialId": "synthetic-quality-20261025-preservation-c-001-contract",
+          "versionId": "v1",
+          "sourceId": "synthetic-quality-once",
+          "kind": "company",
+          "title": "Invented FixtureLoan-C-Preserve-001 complete annual terms",
+          "text": "SYNTHETIC INVENTED TEST ONLY. This document concerns only loan FixtureLoan-C-Preserve-001 held by the invented Company C Preserve. Principal is RUB 1000000 and is constant for every one of the 365 calendar days from 2027-01-01 through 2027-12-31 inclusive. Its contractual annual simple interest rate equals exactly the named index FixtureBench-C-Preserve, with zero margin, no floor or cap, no compounding, fees, taxes, repayments or hedges. Before the announced change the index and contract rate are 12 percent per annum. The contract resets immediately on the effective date of any change to FixtureBench-C-Preserve. Day count is Actual/365 Fixed; 2027 has exactly 365 interest-accrual days for this test. All interest for those365 days is paid once at the end of 2027-12-31. Principal and all other terms remain unchanged. This is one specific invented loan, not a claim about all obligations of the company. FixtureLoan-C-Preserve-001 is distinct from the older invented contract material; this document neither replaces nor corrects that earlier loan. Consequences for this new loan must be assessed separately; no aggregate company-wide total is asserted.",
+          "knownAt": "2026-10-25T13:13:24.267212+00:00",
+          "publishedAt": null,
+          "correctsVersionId": null,
+          "companyIds": ["d7aeac1f-432f-47bd-a826-0d55fbb3fccf"],
+          "bankProfileIds": [],
+          "contentHash": "3ee26dac98b925708e4d79173ea25dd14dc1d57e763368ba6b0c777bfaa7be36"
+        },
+        {
+          "materialId": "synthetic-quality-20261025-preservation-c-unnamed-loan",
+          "versionId": "v1",
+          "sourceId": "synthetic-quality-once",
+          "kind": "company",
+          "title": "Invented independent Company C Preserve unnamed-index loan",
+          "text": "SYNTHETIC INVENTED CONTRACT ONLY. Company C Preserve holds a separate older loan FixtureLoan-C-Unnamed. Principal is RUB 1000000. Its annual rate equals an unnamed reference rate plus 2 percentage points. The reference rate was 10 percent. The identity of this reference index is not specified. This loan is distinct from FixtureLoan-C-Preserve-001; neither contract replaces or corrects the other. No company-wide total is asserted.",
+          "knownAt": "2026-10-25T13:13:24.267212+00:00",
+          "publishedAt": null,
+          "correctsVersionId": null,
+          "companyIds": ["d7aeac1f-432f-47bd-a826-0d55fbb3fccf"],
+          "bankProfileIds": [],
+          "contentHash": "78f53eeccb7ca538fdca133bf9278ae51998c2cfeafee464034c3b65bc31e43d"
+        }
+      ],
+      "coverage": {
+        "complete": true,
+        "materialCount": 3,
+        "companyMaterialCount": 2,
+        "marketMaterialCount": 0,
+        "previousNewsVersionCount": 0,
+        "characters": 4248,
+        "asOf": "2026-10-26T11:36:53.477244+00:00",
+        "budget": {
+          "maximumCharacters": 120000,
+          "usedCharacters": 4248,
+          "omittedSources": [],
+          "stopReason": "within_budget"
+        }
+      },
+      "retrieval": {
+        "mode": "dense+lexical-rrf",
+        "reranker": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        "candidateCount": 4,
+        "selectedMaterials": 2,
+        "availableMaterials": 2,
+        "omittedMaterials": 0,
+        "exhaustive": true
+      }
+    },
+    "toolTrace": [],
+    "proposedDrafts": [
+      {
+        "category": "risk",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "RUB",
+          "targetPeriod": "2027",
+          "baselinePeriod": null,
+          "basis": "contract_total"
+        },
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Договор подтверждает данный заем и его floating rate, привязанный к явно названному FixtureBench-C-Preserve; реальный заем документирован независимо от того, совпадает ли индекс новости.",
+            "assumptions": [
+              "Расчёт сценария применим только если FixtureBench-C-Preserve тождественен FixtureBench-NewA-C3D06D85."
+            ],
+            "sourceHandles": ["s0", "s1"]
+          },
+          "conditions": [
+            {
+              "id": "loan_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Основной долг RUB 1000000 весь 2027 год; простая годовая ставка равна FixtureBench-C-Preserve, без маржи, ограничений, погашений и хеджей; база Actual/365 Fixed; годовые проценты подлежат уплате в конце 2027 года.",
+              "predicate": "Это условия начисления процентов данного займа.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "index_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "FixtureBench-NewA-C3D06D85 повышается с 12% до 16% с 2027-01-01 и остается 16% в течение 2027 года.",
+              "predicate": "Таково изменение именованного новостью индекса.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "index_identity",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договорный индекс называется FixtureBench-C-Preserve, а новостной — FixtureBench-NewA-C3D06D85; их тождество не установлено.",
+              "predicate": "Документы подтверждают идентичность этих индексов.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s1"]
+            },
+            {
+              "id": "interest_effect",
+              "assertion": "conditional",
+              "dependsOn": ["loan_terms", "index_change", "index_identity"],
+              "fact": "Если индексы тождественны, повышение договорной ставки с 12% до 16% увеличивает начисленные проценты данного займа за 2027 год на RUB 40000; оплата не подтверждена.",
+              "predicate": "Сценарий действует только при совпадении индексов и предусмотренном договором reset.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s1"]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "index_identity_unknown",
+              "fact": "Неизвестно, тождественны ли договорный и новостной индексы.",
+              "query": null,
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-preservation-c-001-contract"
+            }
+          ]
+        },
+        "effectKey": "draft-0",
+        "literalObjectRef": "FixtureLoan-C-Preserve-001",
+        "conclusion": "Условный прирост начисленных процентов за 2027 год — 40000 RUB, если договорный индекс тождественен индексу новости и срабатывает reset. Идентичность индексов не установлена, поэтому фактический эффект для займа неизвестен; фактическая оплата также не подтверждена. Вывод относится только к этому займу, не агрегируется с другими обязательствами.",
+        "status": "conditional",
+        "calculation": {
+          "expression": {
+            "kind": "multiply",
+            "left": {
+              "kind": "value",
+              "value": "1000000"
+            },
+            "right": {
+              "kind": "subtract",
+              "left": {
+                "kind": "value",
+                "value": "0.16"
+              },
+              "right": {
+                "kind": "value",
+                "value": "0.12"
+              }
+            }
+          },
+          "unit": "RUB",
+          "period": "2027"
+        },
+        "impact": {
+          "metric": "expense_delta",
+          "amountBasis": "contract_total",
+          "economicObjectId": "FixtureLoan-C-Preserve-001",
+          "evidenceStatus": "conditional",
+          "importance": 3,
+          "urgency": 2,
+          "novelty": 3
+        },
+        "sourceHandles": ["s0", "s1"],
+        "companyImportance": {
+          "score": 3,
+          "rationale": "Документирован конкретный заем RUB 1 млн на 2027 год с плавающей ставкой и оплатой в конце года, но влияние новости зависит от неизвестного совпадения индексов; оценка ограничена этим объектом.",
+          "evidenceSourceHandles": ["s1"]
+        }
+      }
+    ],
+    "arithmeticFeedback": {
+      "results": [
+        {
+          "valid": true,
+          "result": "40000",
+          "unit": "RUB",
+          "period": "2027",
+          "arithmeticOnly": true
+        }
+      ]
+    },
+    "previousQuestions": [
+      {
+        "handle": "q0",
+        "literal": "company:d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "budget_delta",
+          "unit": "RUB",
+          "targetPeriod": "2027",
+          "baselinePeriod": "budget:2027",
+          "basis": "contract_total"
+        },
+        "economicObjectId": null,
+        "conclusion": "Расчётное отклонение от бюджета (новое значение минус baseline): 20000 RUB; период 2027; объект company:d7aeac1f-432f-47bd-a826-0d55fbb3fccf. Применимость определяется сохранёнными условиями и статусом основания. Расчёт не подтверждает фактическую оплату.",
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Собственная экспозиция подтверждена конкретным договором FixtureLoan-C-Preserve-001; новость называет именно его референсный индекс. Это не оценка совокупного долга компании.",
+            "assumptions": [],
+            "sourceHandles": ["s1"],
+            "unavailableSourceRefHandles": ["u0"]
+          },
+          "conditions": [
+            {
+              "id": "loan_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договором установлен постоянный основной долг RUB 1000000 на каждый день с 2027-01-01 по 2027-12-31, простая годовая ставка, равная индексу FixtureBench-C-Preserve, без маржи, floor, cap, капитализации, комиссий, налогов, погашений или хеджей; база Actual/365 Fixed, проценты за год подлежат оплате в конце периода.",
+              "predicate": "Это условия начисления и срок договорной оплаты процентов по данному займу.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "index_reset",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "FixtureBench-C-Preserve меняется с 12% до 14% годовых с 2027-01-01 и остается 14% до 2027-12-31; новость прямо указывает, что это индекс в FixtureLoan-C-Preserve-001.",
+              "predicate": "Договорная ставка займа немедленно меняется вместе с этим индексом.",
+              "status": "supported",
+              "sourceHandles": ["s1"],
+              "unavailableSourceRefHandles": ["u0"]
+            },
+            {
+              "id": "incremental_interest",
+              "assertion": "derived",
+              "dependsOn": ["loan_terms", "index_reset"],
+              "fact": "Дополнительное начисление процентов за 2027 год относительно ставки 12% составляет RUB 20000; договор предусматривает оплату процентов в конце 2027 года, но фактическая оплата не подтверждена.",
+              "predicate": "Прирост ставки 0.02 применяется ко всему неизменному основному долгу за 365/365 дней без иных начислений.",
+              "status": "supported",
+              "sourceHandles": ["s1"],
+              "unavailableSourceRefHandles": ["u0"]
+            }
+          ],
+          "unknowns": []
+        },
+        "sourceHandles": ["s1"],
+        "unavailableSourceRefHandles": ["u0"]
+      }
+    ],
+    "objectCatalog": [
+      {
+        "handle": "o0",
+        "literal": "company:d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+        "sourceHandles": []
+      },
+      {
+        "handle": "o1",
+        "literal": "FixtureLoan-C-Preserve-001",
+        "sourceHandles": ["s1"]
+      },
+      {
+        "handle": "o2",
+        "literal": "FixtureLoan-C-Unnamed",
+        "sourceHandles": ["s2"]
+      }
+    ],
+    "economicObjectCatalog": [
+      {
+        "handle": "e0",
+        "economicObjectId": "FixtureLoan-C-Preserve-001",
+        "companyId": "d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+        "evidence": [
+          {
+            "sourceHandle": "s1",
+            "materialId": "synthetic-quality-20261025-preservation-c-001-contract",
+            "versionId": "v1",
+            "contentHash": "3ee26dac98b925708e4d79173ea25dd14dc1d57e763368ba6b0c777bfaa7be36",
+            "quote": "loan FixtureLoan-C-Preserve-001"
+          }
+        ]
+      },
+      {
+        "handle": "e1",
+        "economicObjectId": "ONLY",
+        "companyId": "d7aeac1f-432f-47bd-a826-0d55fbb3fccf",
+        "evidence": [
+          {
+            "sourceHandle": "s2",
+            "materialId": "synthetic-quality-20261025-preservation-c-unnamed-loan",
+            "versionId": "v1",
+            "contentHash": "78f53eeccb7ca538fdca133bf9278ae51998c2cfeafee464034c3b65bc31e43d",
+            "quote": "CONTRACT ONLY."
+          }
+        ]
+      }
+    ],
+    "unavailableReferenceCatalog": [
+      {
+        "materialId": "synthetic-quality-20261025-preservation-c-001-news",
+        "versionId": "v1",
+        "contentHash": "5dd76d05bf7679c87040f720ce4bc3b7545f31c2317dc52450e7d65d21becb97",
+        "handle": "u0",
+        "availability": "not_loaded"
+      }
+    ],
+    "sourceCatalog": [
+      {
+        "handle": "s0",
+        "materialId": "news-e66024b1622db4596916ab13fa101c5840dda0e3",
+        "versionId": "v-8808d6d8139c3975b17fc3889a57f69bc3707f53",
+        "contentHash": "3efb86743b0fbe64805f61019da8a66e52b8a9bd1a864117c4425aed48bbff83"
+      },
+      {
+        "handle": "s1",
+        "materialId": "synthetic-quality-20261025-preservation-c-001-contract",
+        "versionId": "v1",
+        "contentHash": "3ee26dac98b925708e4d79173ea25dd14dc1d57e763368ba6b0c777bfaa7be36"
+      },
+      {
+        "handle": "s2",
+        "materialId": "synthetic-quality-20261025-preservation-c-unnamed-loan",
+        "versionId": "v1",
+        "contentHash": "78f53eeccb7ca538fdca133bf9278ae51998c2cfeafee464034c3b65bc31e43d"
+      }
+    ]
+  },
+  "submissions": [
+    {
+      "drafts": [
+        {
+          "category": null,
+          "objectHandle": "o1",
+          "question": {
+            "mechanism": "financing_cost",
+            "frame": "event_only",
+            "unit": "RUB",
+            "targetPeriod": "2027",
+            "baselinePeriod": null,
+            "basis": "contract_total"
+          },
+          "assessment": {
+            "applicability": {
+              "status": "established",
+              "basis": "documented_exposure",
+              "explanation": "Собственный договор займа документирован, но его индекс FixtureBench-C-Preserve не установлен как индекс новости FixtureBench-NewA-C3D06D85.",
+              "sourceHandles": ["s1", "s0"],
+              "assumptions": []
+            },
+            "conditions": [
+              {
+                "id": "loan_terms",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "По займу FixtureLoan-C-Preserve-001 основной долг составляет RUB 1000000 весь период 2027 года; ставка равна индексу FixtureBench-C-Preserve, сброс происходит немедленно при изменении этого индекса, иных марж, ограничений, погашений и хеджей нет; начисленные проценты оплачиваются в конце года.",
+                "predicate": "Таковы договорные параметры этого займа.",
+                "status": "supported",
+                "sourceHandles": ["s1"]
+              },
+              {
+                "id": "news_index",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "Индекс FixtureBench-NewA-C3D06D85 повышается с 12% до 16% с 2027-01-01 и остается на 16% в течение 2027 года.",
+                "predicate": "Таково опубликованное изменение именно названного индекса.",
+                "status": "supported",
+                "sourceHandles": ["s0"]
+              },
+              {
+                "id": "index_identity",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "Тождество договорного индекса FixtureBench-C-Preserve и индекса новости FixtureBench-NewA-C3D06D85 не установлено; новость не считает разные наименования тождественными.",
+                "predicate": "Существуют достаточные данные о совпадении индексов.",
+                "status": "unknown",
+                "sourceHandles": ["s0", "s1"]
+              },
+              {
+                "id": "scenario_delta",
+                "assertion": "conditional",
+                "dependsOn": ["loan_terms", "news_index", "index_identity"],
+                "fact": "Если индексы тождественны и договорный reset срабатывает, начисленные проценты по этому займу за 2027 год вырастут на RUB 40000; фактическая оплата не подтверждена.",
+                "predicate": "Условный контрфактический прирост начисленных процентов за 2027 год при совпадении индексов.",
+                "status": "unknown",
+                "sourceHandles": ["s0", "s1"]
+              }
+            ],
+            "unknowns": [
+              {
+                "id": "index_identity_unknown",
+                "fact": "Неизвестно, тождественны ли названный в договоре индекс и индекс из новости.",
+                "query": null,
+                "scope": "company",
+                "materialId": "synthetic-quality-20261025-preservation-c-001-contract"
+              }
+            ]
+          },
+          "conclusion": "Идентичность индекса из договора и индекса новости не установлена, поэтому влияние новости на этот заем неизвестно. При гипотетическом совпадении индексов договорный сброс дал бы прирост начисленных процентов за 2027 год RUB 40000; это не подтверждает фактическую оплату. Вывод только по этому займу, без агрегирования. Не переоцениваются другие прежние эффекты.",
+          "status": "unknown",
+          "impact": {
+            "metric": "expense_delta",
+            "amountBasis": "contract_total",
+            "economicObjectHandle": "e0",
+            "evidenceStatus": "unknown",
+            "importance": 3,
+            "urgency": 2,
+            "novelty": 3
+          },
+          "companyImportance": {
+            "score": 3,
+            "rationale": "Документ подтверждает конкретный заем на 2027 год и его плавающую формулу, но неизвестность тождества индексов не позволяет установить прямое влияние данной новости. Значимость ограничена только этим документированным обязательством; сумма условного сценария не является фактическим эффектом.",
+            "evidenceSourceHandles": ["s1"]
+          },
+          "sourceHandles": ["s0", "s1"]
+        }
+      ]
+    },
+    {
+      "drafts": [
+        {
+          "category": null,
+          "objectHandle": "o1",
+          "question": {
+            "mechanism": "financing_cost",
+            "frame": "event_only",
+            "unit": "RUB",
+            "targetPeriod": "2027",
+            "baselinePeriod": null,
+            "basis": "contract_total"
+          },
+          "assessment": {
+            "applicability": {
+              "status": "established",
+              "basis": "documented_exposure",
+              "explanation": "Собственный договор займа документирован, однако его индекс FixtureBench-C-Preserve не установлен как индекс новости FixtureBench-NewA-C3D06D85.",
+              "sourceHandles": ["s1", "s0"],
+              "assumptions": [
+                "Гипотетический сценарий расчета предполагает, что FixtureBench-C-Preserve тождественен FixtureBench-NewA-C3D06D85; это совпадение не установлено."
+              ]
+            },
+            "conditions": [
+              {
+                "id": "loan_terms",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "По займу FixtureLoan-C-Preserve-001 основной долг RUB 1000000 весь период 2027 года; ставка равна индексу FixtureBench-C-Preserve, reset происходит немедленно при изменении этого индекса, иных марж, ограничений, погашений и хеджей нет; начисленные проценты оплачиваются в конце года.",
+                "predicate": "Таковы договорные параметры этого займа.",
+                "status": "supported",
+                "sourceHandles": ["s1"]
+              },
+              {
+                "id": "news_index",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "Индекс FixtureBench-NewA-C3D06D85 повышается с 12% до 16% с 2027-01-01 и остается на 16% в течение 2027 года.",
+                "predicate": "Таково опубликованное изменение именно названного индекса.",
+                "status": "supported",
+                "sourceHandles": ["s0"]
+              },
+              {
+                "id": "index_identity",
+                "assertion": "observed",
+                "dependsOn": [],
+                "fact": "Тождество договорного индекса FixtureBench-C-Preserve и индекса новости FixtureBench-NewA-C3D06D85 не установлено; новость не считает разные наименования тождественными.",
+                "predicate": "Существуют достаточные данные о совпадении индексов.",
+                "status": "unknown",
+                "sourceHandles": ["s0", "s1"]
+              },
+              {
+                "id": "scenario_delta",
+                "assertion": "conditional",
+                "dependsOn": ["loan_terms", "news_index", "index_identity"],
+                "fact": "Если индексы тождественны и договорный reset срабатывает, начисленные проценты по этому займу за 2027 год вырастут на RUB 40000; фактическая оплата не подтверждена.",
+                "predicate": "Условный контрфактический прирост начисленных процентов за 2027 год при совпадении индексов.",
+                "status": "unknown",
+                "sourceHandles": ["s0", "s1"]
+              }
+            ],
+            "unknowns": [
+              {
+                "id": "index_identity_unknown",
+                "fact": "Неизвестно, тождественны ли названный в договоре индекс и индекс из новости.",
+                "query": null,
+                "scope": "company",
+                "materialId": "synthetic-quality-20261025-preservation-c-001-contract"
+              }
+            ]
+          },
+          "conclusion": "Идентичность индекса из договора и индекса новости не установлена, поэтому влияние новости на этот заем неизвестно. При гипотетическом совпадении индексов договорный сброс дал бы прирост начисленных процентов за 2027 год RUB 40000; это не подтверждает фактическую оплату. Вывод только по этому займу, без агрегирования. Не переоцениваются другие прежние эффекты.",
+          "status": "unknown",
+          "impact": {
+            "metric": "expense_delta",
+            "amountBasis": "contract_total",
+            "economicObjectHandle": "e0",
+            "evidenceStatus": "conditional",
+            "importance": 3,
+            "urgency": 2,
+            "novelty": 3
+          },
+          "companyImportance": {
+            "score": 3,
+            "rationale": "Документ подтверждает конкретный заем на 2027 год и его плавающую формулу, но неизвестность тождества индексов не позволяет установить прямое влияние данной новости. Значимость ограничена только этим документированным обязательством; сумма условного сценария не является фактическим эффектом.",
+            "evidenceSourceHandles": ["s1"]
+          },
+          "sourceHandles": ["s0", "s1"]
+        }
+      ]
+    }
+  ],
+  "nativeInputSha256": "55d08681bb39084920d30437adf8b8ba428d538c3f9cb5db1446b55696d4bc9a",
+  "submissionsSha256": "2f42c4dd3275be61dd238ca9f9339bc4c336bdee1d11a3e049939566ac5ee715"
+}
