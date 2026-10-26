@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { calculationClaimSchema } from './calculation-claim.ts';
 import { insightCategorySchema } from './category.ts';
 import { mechanisms, questionSchema } from './questions.ts';
 import { timestampSchema } from './timestamps.ts';
@@ -201,10 +202,15 @@ export const draftSchema = z.strictObject({
   assessment: assessmentSchema.optional(),
   effectKey: identifier,
   literalObjectRef: z.string().trim().min(1).max(500),
-  conclusion: z.string().trim().min(1).max(12000),
+  conclusion: z
+    .string()
+    .min(1)
+    .max(12000)
+    .refine((value) => value.trim().length > 0),
   status: identifier.max(100),
   sourceRefs: z.array(sourceRefSchema).min(1).max(64),
   calculation: calculationSchema.optional(),
+  calculationClaim: calculationClaimSchema.optional(),
   impact: z
     .strictObject({
       metric: identifier,
@@ -308,6 +314,7 @@ const revisionSchema = z.object({
   status: identifier,
   sourceRefs: z.array(sourceRefSchema),
   calculation: responseCalculationSchema.nullable().optional(),
+  calculationClaim: calculationClaimSchema.nullable().optional(),
   calculationResult: z.string().nullable().optional(),
   calculationArithmeticOnly: z.boolean().nullable().optional(),
   createdAt: timestamp,
@@ -331,7 +338,21 @@ export const effectsResponseSchema = z.object({
 });
 export type StoredEffect = z.infer<typeof effectsResponseSchema>['effects'][number];
 
+// Internal C# EffectDraft responses retain inactive null members. These diagnostics
+// are not saved revisions; keep the strict write/model draft contract unchanged.
+const unpublishedDraftSchema = draftSchema.extend({
+  expectedPreviousRevisionId: identifier.nullable().optional(),
+  modelExplanation: z.string().max(16000).nullable().optional(),
+  calculation: responseCalculationSchema
+    .nullable()
+    .optional()
+    .transform((value) => value ?? undefined),
+  impact: draftSchema.shape.impact.nullable().transform((value) => value ?? undefined),
+});
+
 export const analysisReceiptSchema = z.object({
+  outcome: z.enum(['no_insight', 'insights_saved']).optional(),
+  unpublishedDrafts: z.array(unpublishedDraftSchema).max(maximumDrafts).optional(),
   trigger: materialTriggerSchema.nullable().optional(),
   retrievalTrace: retrievalTraceSchema.nullable().optional(),
   analysisId: identifier,

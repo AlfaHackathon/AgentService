@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { conclusionClaimError } from '../../contracts/calculation-claim.ts';
 import { type AnalysisErrorStatus, NewsAnalysisError } from '../../contracts/errors.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
@@ -93,10 +94,23 @@ export class ServiceClient {
         const payload: unknown = await response.json();
         if (!response.ok) {
           const problem = upstreamErrorSchema.safeParse(payload);
+          const conclusion = problem.success
+            ? (conclusionClaimError(problem.data.code) ??
+              conclusionClaimError(problem.data.message))
+            : undefined;
+          const unknownConclusion =
+            problem.success &&
+            !conclusion &&
+            (problem.data.code.startsWith('CONCLUSION_') ||
+              problem.data.message.startsWith('CONCLUSION_'));
           throw new NewsAnalysisError(
             publicUpstreamStatus(response.status),
-            problem.success ? problem.data.code : 'UPSTREAM_ERROR',
-            problem.success ? problem.data.message : 'Upstream service rejected the request',
+            conclusion?.code ??
+              (problem.success && !unknownConclusion ? problem.data.code : 'UPSTREAM_ERROR'),
+            conclusion?.message ??
+              (problem.success && !unknownConclusion
+                ? problem.data.message
+                : 'Upstream service rejected the request'),
           );
         }
         return payload;

@@ -131,6 +131,7 @@ export type NativeCompanyDraft = {
   };
   sourceHandles: string[];
   calculation?: { expression: string; unit: string; period: string } | undefined;
+  calculationClaimQuote?: string | null | undefined;
 };
 
 export function companyResultSchema(
@@ -144,7 +145,7 @@ export function companyResultSchema(
     frame: v.pipe(
       v.picklist(['event_only', 'absolute', 'budget_delta']),
       v.description(
-        'event_only: event-caused contractual counterfactual delta, no invented budget. absolute: a level, not a delta. budget_delta: requires an actual documented budget_baseline excerpt for the selected object.',
+        'event_only: event delta; absolute: level; budget_delta: actual documented budget.',
       ),
     ),
     unit: text(64),
@@ -211,10 +212,16 @@ export function companyResultSchema(
           question: v.pipe(
             questionHandles.length ? v.union([v.picklist(questionHandles), identity]) : identity,
             v.description(
-              'Reuse a previous question handle only for the same literal object as its original binding. For a different documented object or loan, submit a new inline question identity; never reassign a previous question or its history.',
+              'Reuse a handle only for its original object; otherwise submit a new inline question. Preserve history.',
             ),
           ),
-          conclusion: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(12000)),
+          conclusion: v.pipe(
+            v.string(),
+            v.minLength(1),
+            v.maxLength(12000),
+            v.check((value) => value.trim().length > 0),
+          ),
+          calculationClaimQuote: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(200)))),
           status: v.picklist([
             'observed',
             'announced',
@@ -280,7 +287,7 @@ export function companyResultSchema(
               period: v.pipe(
                 text(1000),
                 v.description(
-                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. A retained quantitative proposal in final review needs an explicit complete final calculation; never keep its computed amount only in conclusion. For a genuine withdrawal use explicit unknown status/evidence with structured missing facts and a qualitative conclusion, or omit the preliminary draft. Do not change question identity to evade validation.',
+                  'Must exactly match question.targetPeriod; unknown period: omit calculation. Final quantitative review needs its own complete calculation; never copy the proposal.',
                 ),
               ),
             }),

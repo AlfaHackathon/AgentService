@@ -31,6 +31,7 @@ const groupSchema = z.object({
     unrevisedEffectIds: z.array(z.string()),
     emptyCompanyIds: z.array(z.uuid()),
     partialContextCompanyIds: z.array(z.uuid()),
+    unassessedCompanyIds: z.array(z.uuid()).optional(),
     aggregationRuleConfirmed: z.boolean(),
   }),
   totals: z.array(

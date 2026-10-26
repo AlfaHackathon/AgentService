@@ -9,6 +9,7 @@ import { companyResultSchema, planResultSchema, roleResultSchema } from '../agen
 import { resolveCompanyResult } from '../company-result.ts';
 import { useServiceTools } from '../service-tools.ts';
 import { type AgentTask, useResultTool } from './result.ts';
+import { conditionalRepair, validationOrigin } from './validation-feedback.ts';
 
 export function useNewsPlannerTools(task: AgentTask) {
   const evidence = useServiceTools(task.serviceTools);
@@ -114,6 +115,8 @@ export function useCompanyTools(task: AgentTask) {
                 : error.message,
             maximumCorrections: 1,
             saved: false,
+            ...validationOrigin(error.code),
+            ...conditionalRepair(error.code),
           }),
         );
       }
