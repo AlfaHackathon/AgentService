@@ -4,8 +4,10 @@ import {
   type NewsReasoner,
   reasoningOutputSchema,
 } from '../contracts/analysis.ts';
+import { validateDeclaredProfile } from '../contracts/declared-profile.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
+import type { CompanyClient } from '../retrieval/company-client.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 import type { InsightClient } from '../retrieval/insight-client.ts';
 import { sourceKey, validateReferences } from './draft-validation.ts';
@@ -14,6 +16,7 @@ type Dependencies = {
   context: ContextClient;
   insights: InsightClient;
   reasoner: NewsReasoner;
+  companies?: Pick<CompanyClient, 'profile'>;
 };
 export type AnalysisResult = AnalysisReceipt & {
   reasoningInvoked: boolean;
@@ -86,6 +89,39 @@ export class NewsAnalyzer {
         'UPSTREAM_CONTRACT',
         'Context scope does not match the request',
       );
+    const companyProfile =
+      (await this.dependencies.companies?.profile(input.companyId, input.asOf)) ?? null;
+    if (companyProfile) {
+      const snapshots = [];
+      for (const ref of companyProfile.declaredProfile?.sourceRefs ?? []) {
+        snapshots.push(
+          context.materials.find((source) => sourceKey(source) === sourceKey(ref)) ??
+            (await contextClient.material(ref.materialId, ref.versionId)),
+        );
+      }
+      validateDeclaredProfile(companyProfile, snapshots, input.companyId, input.asOf);
+      const existing = new Set(context.materials.map(sourceKey));
+      const materials = [
+        ...context.materials,
+        ...snapshots.filter((source) => !existing.has(sourceKey(source))),
+      ];
+      if (JSON.stringify({ ...context, materials, companyProfile }).length > 120000)
+        throw new NewsAnalysisError(
+          422,
+          'DECLARED_PROFILE_BUDGET',
+          'The exact declared company snapshot exceeds the reasoning context budget.',
+        );
+      context = {
+        ...context,
+        materials,
+        coverage: {
+          ...context.coverage,
+          materialCount: materials.length + 1,
+          companyMaterialCount: materials.filter((source) => source.kind === 'company').length,
+          characters: JSON.stringify({ news: context.news, materials }).length,
+        },
+      };
+    }
     const before = {
       effects: session.previousEffects,
       stateVersion: session.stateVersion ?? undefined,
@@ -95,6 +131,7 @@ export class NewsAnalyzer {
       request: input,
       context,
       previousEffects,
+      companyProfile,
     };
     const firstResult = reasoningOutputSchema.safeParse({
       drafts: await reasoner.analyze(reasoningInput),

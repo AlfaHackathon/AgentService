@@ -5,6 +5,7 @@ import type {
   materialSchema,
   sourceRefSchema,
 } from '../news-analysis/contracts/analysis.ts';
+import { validateDeclaredProfile } from '../news-analysis/contracts/declared-profile.ts';
 import { NewsAnalysisError } from '../news-analysis/contracts/errors.ts';
 import { instantAfter, sameInstant } from '../news-analysis/contracts/timestamps.ts';
 import type { AssistantServiceClients } from './service-clients.ts';
@@ -129,7 +130,13 @@ export class AssistantToolSession {
     const membership = await deps.clients.membership(ownerId);
     if (!membership)
       return deny('ASSISTANT_NO_COMPANY', 'The chat owner has no company membership.');
-    return { ...deps, membership, companyId: membership.id.toLowerCase(), asOf: this.state.asOf };
+    return {
+      ...deps,
+      ownerId,
+      membership,
+      companyId: membership.id.toLowerCase(),
+      asOf: this.state.asOf,
+    };
   }
 
   private handle(ref: z.infer<typeof sourceRefSchema>, companyId: string, asOf: string) {
@@ -191,7 +198,14 @@ export class AssistantToolSession {
         'ASSISTANT_PROFILE_SCOPE',
         'The company profile does not match the trusted scope.',
       );
-    return { asOf: scope.asOf, profile };
+    const snapshots = await Promise.all(
+      (profile.declaredProfile?.sourceRefs ?? []).map((ref) =>
+        scope.clients.material(ref.materialId, ref.versionId),
+      ),
+    );
+    validateDeclaredProfile(profile, snapshots, scope.companyId, scope.asOf);
+    const viewer = await scope.clients.viewerContext(scope.ownerId.toLowerCase(), scope.companyId);
+    return { asOf: scope.asOf, profile, viewer };
   }
 
   async search(query: string) {

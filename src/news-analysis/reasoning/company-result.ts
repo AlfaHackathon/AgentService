@@ -6,6 +6,7 @@ import {
 } from '../contracts/business-questions.ts';
 import { validateCalculationQuestion } from '../contracts/calculation-question.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
+import { isProfileSignal, validateProfileExposure } from '../contracts/declared-profile.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog, selectedEconomicObject } from '../retrieval/economic-objects.ts';
@@ -211,6 +212,7 @@ export function resolveCompanyResult(
     validateUniqueBusinessQuestions(parsed);
     for (const draft of parsed) {
       validateCalculationQuestion(draft);
+      validateProfileExposure(draft, sources);
       validateCompanyImportanceEvidence(
         draft,
         sources.filter((s) => s.kind === 'company' && s.companyIds.includes(companyId)),
@@ -259,7 +261,7 @@ function validateFinancialFrame(draft: EffectDraft, sources: Source[]) {
           sources.some(
             (s) =>
               s.kind === 'company' &&
-              s.sourceId !== 'provided-bank-csv' &&
+              !isProfileSignal(s) &&
               s.text.includes(c.fact) &&
               own.some(
                 (r) =>

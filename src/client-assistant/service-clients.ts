@@ -5,6 +5,7 @@ import {
   materialSchema,
   sourceRefSchema,
 } from '../news-analysis/contracts/analysis.ts';
+import { NewsAnalysisError } from '../news-analysis/contracts/errors.ts';
 import { companyProfileSchema } from '../news-analysis/contracts/flow.ts';
 import { timestampSchema } from '../news-analysis/contracts/timestamps.ts';
 import {
@@ -42,13 +43,46 @@ const newsSearchSchema = z.object({
   exhaustive: z.literal(false),
 });
 
+const viewerContextSchema = z.object({
+  userId: z.uuid(),
+  companyId: z.uuid(),
+  role: z
+    .object({ id: z.uuid(), name: z.string().min(1).max(128), isDefault: z.boolean() })
+    .nullable(),
+  observedAt: timestampSchema,
+});
+
 // Local typed service adapters; see docs/client-assistant-news-contract.md.
 export class AssistantServiceClients {
   constructor(
     readonly company: ServiceClient,
     readonly context: ServiceClient,
     readonly insight: ServiceClient,
+    readonly user?: ServiceClient,
   ) {}
+
+  async viewerContext(ownerId: string, companyId: string) {
+    if (!this.user) return { status: 'unavailable' as const };
+    let context: z.infer<typeof viewerContextSchema>;
+    try {
+      context = parseResponse(
+        viewerContextSchema,
+        await this.user.request(
+          `/internal/users/${encodeURIComponent(ownerId)}/viewer-context?${new URLSearchParams({ companyId })}`,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof NewsAnalysisError) return { status: 'unavailable' as const };
+      throw error;
+    }
+    if (context.userId.toLowerCase() !== ownerId || context.companyId.toLowerCase() !== companyId)
+      throw new NewsAnalysisError(
+        502,
+        'VIEWER_CONTEXT_SCOPE',
+        'The viewer context does not match the trusted owner and company.',
+      );
+    return { status: 'available' as const, context };
+  }
 
   async membership(ownerId: string) {
     return parseResponse(

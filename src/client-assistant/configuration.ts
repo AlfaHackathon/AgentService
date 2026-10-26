@@ -1,15 +1,18 @@
 import { ChatRepository } from '../chats/repository.ts';
 import { NewsAnalyzer } from '../news-analysis/application/company-analysis.ts';
 import { createNativeNewsReasoner } from '../news-analysis/reasoning/company-reasoner.ts';
+import { CompanyClient } from '../news-analysis/retrieval/company-client.ts';
 import { ContextClient } from '../news-analysis/retrieval/context-client.ts';
 import { InsightClient } from '../news-analysis/retrieval/insight-client.ts';
 import { ServiceClient } from '../news-analysis/transport/http/service-client.ts';
-import { serviceSettingsSchema } from '../news-analysis/transport/http/settings.ts';
+import { serviceSettingsSchema, serviceUrl } from '../news-analysis/transport/http/settings.ts';
 import { AssistantServiceClients } from './service-clients.ts';
 import { type AssistantDependencies, AssistantToolError } from './session.ts';
 
 export async function createAssistantDependencies(): Promise<AssistantDependencies> {
-  const settings = serviceSettingsSchema.safeParse(process.env);
+  const settings = serviceSettingsSchema
+    .extend({ USER_SERVICE_URL: serviceUrl.optional() })
+    .safeParse(process.env);
   if (!settings.success)
     throw new AssistantToolError(
       'ASSISTANT_NOT_CONFIGURED',
@@ -20,6 +23,7 @@ export async function createAssistantDependencies(): Promise<AssistantDependenci
     COMPANY_SERVICE_URL,
     CONTEXT_SERVICE_URL,
     INSIGHT_SERVICE_URL,
+    USER_SERVICE_URL,
   } = settings.data;
   // Loaded only on a tool call; importing the agent does not start a second DB,
   // news worker, source-change pump or background model operation.
@@ -31,8 +35,10 @@ export async function createAssistantDependencies(): Promise<AssistantDependenci
       new ServiceClient(COMPANY_SERVICE_URL, secret),
       new ServiceClient(CONTEXT_SERVICE_URL, secret),
       new ServiceClient(INSIGHT_SERVICE_URL, secret),
+      USER_SERVICE_URL ? new ServiceClient(USER_SERVICE_URL, secret) : undefined,
     ),
     analyzer: new NewsAnalyzer({
+      companies: new CompanyClient(COMPANY_SERVICE_URL, secret),
       context: new ContextClient(CONTEXT_SERVICE_URL, secret),
       insights: new InsightClient(INSIGHT_SERVICE_URL, secret),
       reasoner: createNativeNewsReasoner(),
