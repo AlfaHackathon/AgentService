@@ -417,3 +417,7 @@ Native send uses a flat JSON body and returns 202 admission. History and SSE are
 SSE emits `data` arrays plus `control` checkpoints, offsets are opaque, and disconnect does not cancel work.
 Prefer `@flue/sdk@2.3.0` for observation/reconnection; Swagger Try it out is not an SSE UI or domain job monitor.
 Some native parts/result checkpoints remain extensible objects; this spec does not invent a stable card-event API.
+
+## Insight read ownership
+
+Public card/feed/history REST reads belong to InsightService. The old `/agent-service/insights…` routes are removed without aliases or redirects; see [the breaking route map and gated cutover order](docs/public-insight-read.md). Existing chat and `assistant_news_insights` remain available. Release this removal only after the owning Insight public endpoints pass native/gateway smoke.

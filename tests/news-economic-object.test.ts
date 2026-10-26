@@ -26,6 +26,7 @@ it('exposes an explicitly documented English loan as a selectable object', () =>
 });
 it('does not accept an unbound null economic object in a monetary tool result', () => {
   const draft = {
+    category: null,
     objectHandle: 'o0',
     assessment: { conditions: [], unknowns: [] },
     question: {
@@ -83,6 +84,7 @@ function wire() {
   return {
     drafts: [
       {
+        category: null,
         objectHandle: 'o0',
         assessment: {
           applicability: {
@@ -120,6 +122,29 @@ function wire() {
     ],
   };
 }
+it('rejects the attempt4 year versus date-range mismatch without rewriting either representation', () => {
+  const data = wire();
+  Object.assign(data.drafts[0]?.calculation ?? {}, { period: '2027-01-01/2028-01-01' });
+  Object.assign(data.drafts[0]?.impact ?? {}, { amountBasis: 'contract_total' });
+  const before = structuredClone(data);
+  expect(() => resolveCompanyResult(data, scope())).toThrowError(
+    expect.objectContaining({ status: 422, code: 'CALCULATION_QUESTION_MISMATCH' }),
+  );
+  expect(data).toEqual(before);
+});
+it('checks a resolved previous question without changing its canonical identity or history', () => {
+  const data = wire();
+  const binding = scope();
+  const question = questionSchema.parse(data.drafts[0]?.question);
+  binding.questions = [{ handle: 'q0', literal: `company:${companyId}`, question }];
+  Object.assign(data.drafts[0] ?? {}, { question: 'q0' });
+  Object.assign(data.drafts[0]?.calculation ?? {}, { period: '2027-01-01/2028-01-01' });
+  const before = structuredClone(binding.questions);
+  expect(() => resolveCompanyResult(data, binding)).toThrowError(
+    expect.objectContaining({ status: 422, code: 'CALCULATION_QUESTION_MISMATCH' }),
+  );
+  expect(binding.questions).toEqual(before);
+});
 it('resolves only the selected documented ID and preserves the stable company question object', () => {
   const [draft] = resolveCompanyResult(wire(), scope());
   expect(draft?.literalObjectRef).toBe(`company:${companyId}`);

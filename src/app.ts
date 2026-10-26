@@ -4,7 +4,6 @@ import { createApplication, mountService } from './application.ts';
 import { ChatRepository } from './chats/repository.ts';
 import { readEnvironment } from './config/environment.ts';
 import { pool } from './db.ts';
-import { createInsightReadRoutes } from './insights/routes.ts';
 import { createConfiguredNewsAnalysis } from './news-analysis/composition/configuration.ts';
 import { readSql } from './shared/read-sql.ts';
 
@@ -19,7 +18,6 @@ export default mountService(
     chats: new ChatRepository(pool),
     agentRouter: createAgentRouter(ClientAssistantAgent),
     newsAnalysis,
-    insightRouter: createInsightReadRoutes(),
     ready: async () => {
       await pool.query(readinessSql);
     },

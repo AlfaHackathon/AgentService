@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 import type { EffectDraft } from '../contracts/analysis.ts';
+import { insightCategories } from '../contracts/category.ts';
 import { mechanisms, periodPattern } from '../contracts/questions.ts';
 
 const text = (maximum: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(maximum));
@@ -11,6 +12,8 @@ const sourceRef = v.strictObject({
   contentHash: v.pipe(v.string(), v.regex(/^[a-f0-9]{64}$/)),
 });
 const conditions = v.pipe(v.array(v.pipe(v.string(), v.maxLength(1000))), v.maxLength(16));
+
+export const nativeCategorySchema = v.nullable(v.picklist(insightCategories));
 
 export const planResultSchema = v.strictObject({
   mechanisms: v.optional(v.pipe(v.array(v.picklist(mechanisms)), v.minLength(1), v.maxLength(12))),
@@ -34,6 +37,7 @@ export const planResultSchema = v.strictObject({
   generalInsights: v.pipe(
     v.array(
       v.strictObject({
+        category: nativeCategorySchema,
         title: text(500),
         conclusion: text(6000),
         mechanism: text(4000),
@@ -103,6 +107,7 @@ export const roleResultSchema = v.strictObject({
 
 type Assessment = NonNullable<EffectDraft['assessment']>;
 export type NativeCompanyDraft = {
+  category: (typeof insightCategories)[number] | null;
   companyImportance?:
     | { score: number | null; rationale: string; evidenceSourceHandles: string[] }
     | undefined;
@@ -159,6 +164,7 @@ export function companyResultSchema(
     drafts: v.pipe(
       v.array(
         v.strictObject({
+          category: nativeCategorySchema,
           objectHandle: v.picklist(objectHandles),
           assessment: v.strictObject({
             applicability: v.optional(
@@ -271,7 +277,12 @@ export function companyResultSchema(
             v.strictObject({
               expression: text(2000),
               unit: text(64),
-              period: text(1000),
+              period: v.pipe(
+                text(1000),
+                v.description(
+                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. If the required period is unknown, omit calculation.',
+                ),
+              ),
             }),
           ),
         }),
