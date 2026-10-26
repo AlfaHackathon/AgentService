@@ -6,6 +6,7 @@ import {
   sourceRefSchema,
 } from './analysis.ts';
 import { insightCategorySchema } from './category.ts';
+import type { DeclaredCompanyContext, DeclaredRecipientContext } from './declared-context.ts';
 import { depthDecisionSchema } from './depth.ts';
 import { mechanisms } from './questions.ts';
 import { type SignalInventory, signalCoverageSchema, signalInventorySchema } from './signals.ts';
@@ -159,6 +160,7 @@ export type RoleGroup = {
     unrevisedEffectIds: string[];
     emptyCompanyIds: string[];
     partialContextCompanyIds: string[];
+    unassessedCompanyIds?: string[] | undefined;
     aggregationRuleConfirmed: boolean;
   };
   totals: {
@@ -201,7 +203,14 @@ export interface FlowReasoner {
     scope?: { asOf: string },
   ): Promise<NewsPlan>;
   role(
-    profile: Pick<RoleProfile, 'personId' | 'companyId' | 'role' | 'responsibilities'>,
+    profile: Pick<RoleProfile, 'personId' | 'companyId' | 'role' | 'responsibilities'> & {
+      recipientContext?: {
+        company: DeclaredCompanyContext;
+        recipient: DeclaredRecipientContext;
+        knowledgeRole: string;
+        usage: 'framing/actions only; no ACL/arithmetic';
+      };
+    },
     facts: RoleFact[],
     groups?: RoleGroup[],
     scope?: { asOf: string },

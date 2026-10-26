@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import type { EffectDraft } from '../contracts/analysis.ts';
 import { insightCategories } from '../contracts/category.ts';
+import { maximumTitleLength } from '../contracts/insight-title.ts';
 import { mechanisms, periodPattern } from '../contracts/questions.ts';
 
 const text = (maximum: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(maximum));
@@ -107,6 +108,7 @@ export const roleResultSchema = v.strictObject({
 
 type Assessment = NonNullable<EffectDraft['assessment']>;
 export type NativeCompanyDraft = {
+  title?: string | null | undefined;
   category: (typeof insightCategories)[number] | null;
   companyImportance?:
     | { score: number | null; rationale: string; evidenceSourceHandles: string[] }
@@ -131,6 +133,7 @@ export type NativeCompanyDraft = {
   };
   sourceHandles: string[];
   calculation?: { expression: string; unit: string; period: string } | undefined;
+  calculationClaimQuote?: string | null | undefined;
 };
 
 export function companyResultSchema(
@@ -144,7 +147,7 @@ export function companyResultSchema(
     frame: v.pipe(
       v.picklist(['event_only', 'absolute', 'budget_delta']),
       v.description(
-        'event_only: event-caused contractual counterfactual delta, no invented budget. absolute: a level, not a delta. budget_delta: requires an actual documented budget_baseline excerpt for the selected object.',
+        'event_only: event delta; absolute: level; budget_delta: actual documented budget.',
       ),
     ),
     unit: text(64),
@@ -165,6 +168,7 @@ export function companyResultSchema(
       v.array(
         v.strictObject({
           category: nativeCategorySchema,
+          title: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(maximumTitleLength)))),
           objectHandle: v.picklist(objectHandles),
           assessment: v.strictObject({
             applicability: v.optional(
@@ -211,10 +215,16 @@ export function companyResultSchema(
           question: v.pipe(
             questionHandles.length ? v.union([v.picklist(questionHandles), identity]) : identity,
             v.description(
-              'Reuse a previous question handle only for the same literal object as its original binding. For a different documented object or loan, submit a new inline question identity; never reassign a previous question or its history.',
+              'Same object: reuse its handle; otherwise new question. Preserve history.',
             ),
           ),
-          conclusion: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(12000)),
+          conclusion: v.pipe(
+            v.string(),
+            v.minLength(1),
+            v.maxLength(12000),
+            v.check((value) => value.trim().length > 0),
+          ),
+          calculationClaimQuote: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(200)))),
           status: v.picklist([
             'observed',
             'announced',
@@ -280,7 +290,7 @@ export function companyResultSchema(
               period: v.pipe(
                 text(1000),
                 v.description(
-                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. A retained quantitative proposal in final review needs an explicit complete final calculation; never keep its computed amount only in conclusion. For a genuine withdrawal use explicit unknown status/evidence with structured missing facts and a qualitative conclusion, or omit the preliminary draft. Do not change question identity to evade validation.',
+                  'Match question.targetPeriod exactly; unknown: omit calculation. Final review needs its own calculation, never a copied proposal.',
                 ),
               ),
             }),

@@ -10,6 +10,7 @@ import {
 } from '../contracts/flow.ts';
 import type { CompanyClient } from '../retrieval/company-client.ts';
 import type { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
+import type { OwnerContextClient } from '../retrieval/owner-context.ts';
 import type { NewsAnalyzer } from './company-analysis.ts';
 import { runCompany } from './company-run.ts';
 import { selectCompanies } from './company-selection.ts';
@@ -23,6 +24,7 @@ type Dependencies = {
   jobs: FlowJobClient;
   analyzer: NewsAnalyzer;
   reasoner: FlowReasoner;
+  owners?: Pick<OwnerContextClient, 'recipient' | 'company'>;
 };
 const materialKey = (s: { materialId: string; versionId: string; contentHash: string }) =>
   JSON.stringify([s.materialId, s.versionId, s.contentHash]);
@@ -247,6 +249,7 @@ export class NewsFlow {
         reasoner,
         checkpoint,
         asOf: request.asOf,
+        ...(this.deps.owners ? { owners: this.deps.owners } : {}),
         save: () => save(),
         ensureLease: () => {
           if (leaseError) throw leaseError;

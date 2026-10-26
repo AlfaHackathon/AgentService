@@ -1,4 +1,5 @@
 import type { ContextBundle, StoredEffect } from '../contracts/analysis.ts';
+import { isNonDocumentarySource } from '../contracts/source-policy.ts';
 
 export type Source = ContextBundle['news'];
 export type ObjectBinding = { handle: string; literal: string; sourceHandles: string[] };
@@ -14,7 +15,8 @@ export function objectCatalog(
   const objects = existing.map((o) => ({ ...o, sourceHandles: [...o.sourceHandles] }));
   if (!objects.length)
     objects.push({ handle: 'o0', literal: `company:${companyId}`, sourceHandles: [] });
-  for (const [i, source] of sources.entries())
+  for (const [i, source] of sources.entries()) {
+    if (isNonDocumentarySource(source.sourceId)) continue;
     for (const found of source.text.matchAll(
       /(?<![\p{L}\p{N}])(договор|контракт|лот|заказ|loan|credit agreement|contract|agreement)(?![\p{L}\p{N}])[\s№:«"“]*(?:ID[\s:]+|No\.?[\s:]+)?([\p{L}\p{N}][\p{L}\p{N}_./-]{1,80})/giu,
     )) {
@@ -37,6 +39,7 @@ export function objectCatalog(
         if (!old.sourceHandles.includes(`s${i}`)) old.sourceHandles.push(`s${i}`);
       } else objects.push({ handle: `o${objects.length}`, literal, sourceHandles: [`s${i}`] });
     }
+  }
   for (const prior of previous)
     if (!objects.some((o) => o.literal === prior.literalObjectRef))
       objects.push({

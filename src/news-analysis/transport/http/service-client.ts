@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { narrativeValidationError } from '../../contracts/calculation-claim.ts';
 import { type AnalysisErrorStatus, NewsAnalysisError } from '../../contracts/errors.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
@@ -93,10 +94,25 @@ export class ServiceClient {
         const payload: unknown = await response.json();
         if (!response.ok) {
           const problem = upstreamErrorSchema.safeParse(payload);
+          const narrative = problem.success
+            ? (narrativeValidationError(problem.data.code) ??
+              narrativeValidationError(problem.data.message))
+            : undefined;
+          const unknownNarrative =
+            problem.success &&
+            !narrative &&
+            (problem.data.code.startsWith('CONCLUSION_') ||
+              problem.data.message.startsWith('CONCLUSION_') ||
+              problem.data.code.startsWith('TITLE_') ||
+              problem.data.message.startsWith('TITLE_'));
           throw new NewsAnalysisError(
             publicUpstreamStatus(response.status),
-            problem.success ? problem.data.code : 'UPSTREAM_ERROR',
-            problem.success ? problem.data.message : 'Upstream service rejected the request',
+            narrative?.code ??
+              (problem.success && !unknownNarrative ? problem.data.code : 'UPSTREAM_ERROR'),
+            narrative?.message ??
+              (problem.success && !unknownNarrative
+                ? problem.data.message
+                : 'Upstream service rejected the request'),
           );
         }
         return payload;

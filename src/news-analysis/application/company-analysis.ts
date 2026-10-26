@@ -9,12 +9,14 @@ import { validateFinalCalculations } from '../contracts/final-calculation.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 import type { InsightClient } from '../retrieval/insight-client.ts';
+import type { OwnerContextClient } from '../retrieval/owner-context.ts';
 import { sourceKey, validateReferences } from './draft-validation.ts';
 
 type Dependencies = {
   context: ContextClient;
   insights: InsightClient;
   reasoner: NewsReasoner;
+  owners?: Pick<OwnerContextClient, 'company'>;
 };
 export type AnalysisResult = AnalysisReceipt & {
   reasoningInvoked: boolean;
@@ -68,7 +70,13 @@ export class NewsAnalyzer {
           'The source trigger is unavailable at this scope and time',
         );
       if (!context.materials.some((m) => sourceKey(m) === sourceKey(source)))
-        context = { ...context, materials: [...context.materials, source] };
+        context = contextClient.documentaryContext(
+          {
+            ...context,
+            materials: [...context.materials, source],
+          },
+          input,
+        );
     }
     if (
       context.news.materialId !== input.newsMaterialId ||
@@ -92,10 +100,12 @@ export class NewsAnalyzer {
       stateVersion: session.stateVersion ?? undefined,
     };
     const previousEffects = session.previousEffects;
+    const declaredContext = await this.dependencies.owners?.company(input.companyId, input.asOf);
     const reasoningInput: import('../contracts/analysis.ts').ReasoningInput = {
       request: input,
       context,
       previousEffects,
+      ...(declaredContext ? { declaredContext } : {}),
     };
     const firstResult = reasoningOutputSchema.safeParse({
       drafts: await reasoner.analyze(reasoningInput),
@@ -169,7 +179,17 @@ export class NewsAnalyzer {
         stopReason: fresh.length ? 'new_evidence' : 'no_new_evidence',
       });
       if (!fresh.length) break;
-      const merged = { ...found, materials: [...context.materials, ...fresh] };
+      const merged = contextClient.documentaryContext(
+        {
+          ...found,
+          materials: [...context.materials, ...fresh],
+          nonDocumentarySources: [
+            ...(context.nonDocumentarySources ?? []),
+            ...(found.nonDocumentarySources ?? []),
+          ],
+        },
+        input,
+      );
       if (JSON.stringify(merged).length > 120000) {
         stop('context_budget');
         break;

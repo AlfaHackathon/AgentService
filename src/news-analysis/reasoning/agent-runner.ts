@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { type Agent, type ConversationStreamChunk, init } from '@flue/runtime';
 import { isTimeoutCause, NewsAnalysisError } from '../contracts/errors.ts';
 import type { ToolEvidence, ToolScope } from '../retrieval/tool-evidence.ts';
+import { terminalValidation } from './tools/validation-feedback.ts';
 
 // The application/standalone worker owns the single Flue runtime and provider.
 // Each phase gets its own conversation: company and role contexts never coalesce.
@@ -58,6 +59,7 @@ async function runNewsAgentAttempt(
     'project_role_actions',
   ]);
   let companySubmissions = 0;
+  let lastValidation: NewsAnalysisError | undefined;
   let modelTurn = '';
   let turnSequence = 0;
   const timeoutMs = Math.max(180000, Math.min(options.timeoutMs ?? 180000, 360000));
@@ -96,6 +98,8 @@ async function runNewsAgentAttempt(
           throw new Error('Company result submission budget exhausted after 2 submissions');
         if (event.type === 'tool-output') {
           const call = toolTurns.get(event.toolCallId);
+          if (call?.name === 'submit_news_analysis')
+            lastValidation = terminalValidation(event.output);
           if (call && resultTools.has(call.name)) acceptedResultTurns.add(call.turn);
         }
       },
@@ -118,6 +122,7 @@ async function runNewsAgentAttempt(
         : { name: 'UnknownError', message: 'Phase failed' };
     // Cancelling read alone leaves work running; record an actual runtime abort.
     await handle.abort().catch(() => {});
+    if (lastValidation && !signal.aborted && !isTimeoutCause(error)) throw lastValidation;
     throw new NewsAnalysisError(
       502,
       signal.aborted || isTimeoutCause(error) ? 'REASONING_TIMEOUT' : options.errorCode,

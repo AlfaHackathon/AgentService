@@ -4,10 +4,12 @@ import {
   businessQuestionKey,
   validateUniqueBusinessQuestions,
 } from '../contracts/business-questions.ts';
+import { claimFromQuote } from '../contracts/calculation-claim.ts';
 import { validateCalculationQuestion } from '../contracts/calculation-question.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { validateFinalCalculations } from '../contracts/final-calculation.ts';
+import { validateTitle } from '../contracts/insight-title.ts';
 import type { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog, selectedEconomicObject } from '../retrieval/economic-objects.ts';
 import type { ObjectBinding, Source } from '../retrieval/source-catalog.ts';
@@ -60,6 +62,7 @@ export function resolveCompanyResult(
             sourceHandles,
             companyImportance,
             calculation,
+            calculationClaimQuote,
             objectHandle,
             assessment,
             impact,
@@ -91,6 +94,13 @@ export function resolveCompanyResult(
           const question =
             typeof proposedQuestion === 'string' ? priorQuestion?.question : proposedQuestion;
           if (!question) throw new Error('Missing question identity');
+          validateTitle(draft.title);
+          const calculationClaim = claimFromQuote(
+            draft.conclusion,
+            calculationClaimQuote,
+            calculation,
+            draft.title,
+          );
           const economicObjectId = selectedEconomicObject(
             impact.economicObjectHandle,
             economics,
@@ -117,6 +127,7 @@ export function resolveCompanyResult(
             );
           return {
             ...draft,
+            ...(calculationClaim ? { calculationClaim } : {}),
             ...(companyImportance
               ? {
                   companyImportance: {
