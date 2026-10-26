@@ -6,6 +6,7 @@ import {
   parserNewsReferenceSchema,
   parserSourceSchema,
 } from '../../contracts/news-event.ts';
+import { sourceUrlSchema } from '../../contracts/source-url.ts';
 import { timestampSchema } from '../../contracts/timestamps.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
@@ -15,6 +16,7 @@ const responseSchema = z.object({
   title: z.string().trim().min(1).max(1000),
   text: z.string().max(200000),
   publishedAt: timestampSchema,
+  url: sourceUrlSchema.nullish(),
 });
 const maximumBytes = 1048576;
 const unavailable = () =>
@@ -124,7 +126,7 @@ export class ParserNewsClient {
             'Parser document source does not match the Kafka reference.',
           );
         // Preserve broker source spelling to avoid silently changing existing admission IDs.
-        // DTO has no completeness/version/URL guarantee. Extra fields do not promote this lead.
+        // An optional owner URL does not establish completeness or a publisher version.
         return {
           source: reference.source,
           externalId: news.externalId,
@@ -132,6 +134,7 @@ export class ParserNewsClient {
           text: news.text,
           publishedAt: news.publishedAt,
           textCompleteness: 'lead',
+          ...(news.url == null ? {} : { sourceUrl: news.url }),
         };
       } catch (error) {
         if (error instanceof NewsAnalysisError && error.status !== 502) throw error;
