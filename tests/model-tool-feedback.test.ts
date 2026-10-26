@@ -150,6 +150,41 @@ it('bounds many Unicode diagnostics without trimming any source or assistant arg
   expect(output.messages.slice(0, -1)).toEqual(context.messages.slice(0, -1));
 });
 
+it('prioritizes one error per draft ahead of redundant root and first-draft errors', () => {
+  const { context, args, error } = fixture(
+    'submit_news_analysis',
+    [
+      '  - conclusion: schema is false',
+      '  - status: schema is false',
+      '  - impact: schema is false',
+      '  - root: must not have additional properties',
+      '  - drafts.0.conclusion: required',
+      '  - drafts.0.status: required',
+      '  - drafts.0.impact: required',
+      '  - drafts.1: must be object',
+    ].join('\n'),
+  );
+  Object.assign(args, { conclusion: 'Synthetic misplaced conclusion' });
+  if (error.role !== 'toolResult' || error.content[0]?.type !== 'text')
+    throw new Error('Invalid fixture');
+  error.content[0].text =
+    error.content[0].text.slice(0, error.content[0].text.indexOf('\n\nReceived arguments:\n')) +
+    `\n\nReceived arguments:\n${JSON.stringify(args, null, 2)}`;
+  const before = structuredClone(context);
+  const output = compactNewsToolFeedback(context);
+  const message = output.messages.at(-1);
+  if (message?.role !== 'toolResult' || message.content[0]?.type !== 'text')
+    throw new Error('Missing feedback');
+  const feedback = message.content[0].text;
+  expect(feedback).toContain('drafts.0.conclusion');
+  expect(feedback).toContain('drafts.1: must be object');
+  expect(feedback).toContain('Use {drafts:[{...}]}');
+  expect(feedback).toContain('never at top-level');
+  expect(Buffer.byteLength(feedback, 'utf8')).toBeLessThanOrEqual(512);
+  expect(context).toEqual(before);
+  expect(output.messages.slice(0, -1)).toEqual(context.messages.slice(0, -1));
+});
+
 it('matches the latest preceding assistant call for a reused id and leaves a mismatched old error intact', () => {
   const { context, assistant } = fixture();
   if (assistant.role !== 'assistant' || assistant.content[0]?.type !== 'toolCall')
