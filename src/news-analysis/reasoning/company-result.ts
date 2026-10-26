@@ -7,6 +7,7 @@ import {
 import { validateCalculationQuestion } from '../contracts/calculation-question.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
+import { validateFinalCalculations } from '../contracts/final-calculation.ts';
 import type { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog, selectedEconomicObject } from '../retrieval/economic-objects.ts';
 import type { ObjectBinding, Source } from '../retrieval/source-catalog.ts';
@@ -18,6 +19,7 @@ export type CompanyResultScope = {
   asOf: string;
   sources: Source[];
   objects: ObjectBinding[];
+  proposedDrafts?: EffectDraft[];
   questions: {
     handle: string;
     literal: string;
@@ -28,7 +30,7 @@ export type CompanyResultScope = {
 
 export function resolveCompanyResult(
   response: unknown,
-  { sources, objects, questions, companyId, asOf }: CompanyResultScope,
+  { sources, objects, questions, companyId, asOf, proposedDrafts }: CompanyResultScope,
 ): EffectDraft[] {
   const handles = sources.map((_, i) => `s${i}`);
   const economics = economicObjectCatalog(sources, companyId, asOf);
@@ -209,6 +211,7 @@ export function resolveCompanyResult(
       ),
     }).drafts;
     validateUniqueBusinessQuestions(parsed);
+    if (proposedDrafts) validateFinalCalculations(proposedDrafts, parsed);
     for (const draft of parsed) {
       validateCalculationQuestion(draft);
       validateCompanyImportanceEvidence(

@@ -4,7 +4,7 @@ import { categoryPolicy } from '../contracts/category.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { questionSchema } from '../contracts/questions.ts';
 import { economicObjectCatalog } from '../retrieval/economic-objects.ts';
-import { type ObjectBinding, objectCatalog } from '../retrieval/source-catalog.ts';
+import { type ObjectBinding, objectCatalog, sourceKey } from '../retrieval/source-catalog.ts';
 import { runNewsAgent } from './agent-runner.ts';
 import { resolveCompanyResult } from './company-result.ts';
 
@@ -51,11 +51,65 @@ export function createNativeNewsReasoner(
         assessment: e.currentRevision.assessment,
         sources: e.currentRevision.sourceRefs,
       }));
+    const references = (refs: EffectDraft['sourceRefs']) => {
+      const sourceHandles: string[] = [];
+      const unavailableSourceRefs: EffectDraft['sourceRefs'] = [];
+      for (const ref of new Map(refs.map((ref) => [sourceKey(ref), ref])).values()) {
+        const index = sources.findIndex((source) => sourceKey(source) === sourceKey(ref));
+        const handle = handles[index];
+        if (handle === undefined) unavailableSourceRefs.push(ref);
+        else sourceHandles.push(handle);
+      }
+      return { sourceHandles, ...(unavailableSourceRefs.length ? { unavailableSourceRefs } : {}) };
+    };
+    const importance = (value: EffectDraft['companyImportance']) => {
+      if (!value) return value;
+      const { sourceHandles, unavailableSourceRefs } = references(value.evidenceRefs);
+      return {
+        ...value,
+        evidenceRefs: undefined,
+        evidenceSourceHandles: sourceHandles,
+        ...(unavailableSourceRefs ? { unavailableEvidenceRefs: unavailableSourceRefs } : {}),
+      };
+    };
+    const assessment = (value: EffectDraft['assessment'] | null) =>
+      value && {
+        ...value,
+        conditions: value.conditions.map(({ sourceRefs, ...condition }) => ({
+          ...condition,
+          ...references(sourceRefs),
+        })),
+        ...(value.applicability
+          ? {
+              applicability: {
+                ...value.applicability,
+                sourceRefs: undefined,
+                ...references(value.applicability.sourceRefs),
+              },
+            }
+          : {}),
+      };
     const makeContent = () =>
       JSON.stringify({
         ...input,
         previousEffects: undefined,
-        previousQuestions: questions,
+        proposedDrafts: input.proposedDrafts?.map(
+          ({ sourceRefs, companyImportance, ...draft }) => ({
+            ...draft,
+            ...references(sourceRefs),
+            assessment: assessment(draft.assessment),
+            companyImportance: importance(companyImportance),
+          }),
+        ),
+        toolTrace: input.toolTrace?.map(({ retrievedSources, ...trace }) => ({
+          ...trace,
+          ...references(retrievedSources),
+        })),
+        previousQuestions: questions.map(({ sources: refs, ...question }) => ({
+          ...question,
+          assessment: assessment(question.assessment),
+          ...references(refs),
+        })),
         objectCatalog: objects,
         economicObjectCatalog: economicObjectCatalog(
           sources,
@@ -66,6 +120,7 @@ export function createNativeNewsReasoner(
           handle: handles[i],
           materialId: s.materialId,
           versionId: s.versionId,
+          contentHash: s.contentHash,
         })),
       });
     // Reserve room for instructions/tool feedback; measure the entire review payload.
@@ -138,6 +193,7 @@ export function createNativeNewsReasoner(
           sources,
           objects,
           questions,
+          ...(input.proposedDrafts !== undefined ? { proposedDrafts: input.proposedDrafts } : {}),
         },
         objectHandles: objects.map((o) => o.handle),
         sourceHandles: handles,
@@ -168,6 +224,7 @@ export function createNativeNewsReasoner(
           : {}),
         instructions:
           instructions +
+          '\nВ предложениях, прежних вопросах и toolTrace точные citations упакованы как sourceHandles/evidenceSourceHandles из sourceCatalog; полная identity и оригиналы сохранены в context. Незагруженные точные refs сохранены отдельно в unavailableSourceRefs/unavailableEvidenceRefs; они не являются sourceHandles или новыми подтверждениями. Все уникальные conditions, unknowns и результаты arithmetic feedback сохранены; feedback подтверждает только арифметику. В submit_news_analysis обязательно заполняй sourceHandles каждого draft, включая s0, и sourceHandles условий/applicability.\n' +
           `\nEvery condition and unknown needs a unique local id. Conditions also require assertion (observed, derived, conditional) and dependsOn (IDs of conditions or unknowns). Observed facts have no dependencies; derived and conditional claims require explicit prerequisites. A derived claim can be supported only when every reachable prerequisite is supported. An unresolved index identity, period, exposure or other necessary fact must be an unknown dependency; source citations alone do not establish the consequence. Keep independent observed facts supported. A conditional scenario must retain condition.status unknown, impact.evidenceStatus conditional, established applicability and explicit applicability.assumptions; state the hypothetical proposition explicitly. These fields describe declared evidence dependencies, not source handles. Never invent evidence or erase unknown prerequisites to obtain acceptance.\n` +
           `\nДля каждого вывода заполни impact: metric и amountBasis определяют совместимость расчёта;
 При недостающем факте сам вызови context_find_company_facts с конкретным вопросом; добор не выполняется автоматически после final result. context_read_original читает точную уже разрешённую версию. Новые source/object handles из результата инструмента расширяют каталог; используй их для цитирования.
@@ -210,6 +267,7 @@ ${final ? 'Это заключительная проверка: перечит�
       questions,
       companyId: input.request.companyId,
       asOf: input.request.asOf,
+      ...(input.proposedDrafts !== undefined ? { proposedDrafts: input.proposedDrafts } : {}),
     });
   }
   return {

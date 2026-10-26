@@ -280,7 +280,7 @@ export function companyResultSchema(
               period: v.pipe(
                 text(1000),
                 v.description(
-                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. If the required period is unknown, omit calculation.',
+                  'Must exactly match the resolved question targetPeriod. Do not convert a year into a date range or infer equivalence. A retained quantitative proposal in final review needs an explicit complete final calculation; never keep its computed amount only in conclusion. For a genuine withdrawal use explicit unknown status/evidence with structured missing facts and a qualitative conclusion, or omit the preliminary draft. Do not change question identity to evade validation.',
                 ),
               ),
             }),

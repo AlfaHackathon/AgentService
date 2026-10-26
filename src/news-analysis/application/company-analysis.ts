@@ -5,6 +5,7 @@ import {
   reasoningOutputSchema,
 } from '../contracts/analysis.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
+import { validateFinalCalculations } from '../contracts/final-calculation.ts';
 import { instantAfter, sameInstant } from '../contracts/timestamps.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
 import type { InsightClient } from '../retrieval/insight-client.ts';
@@ -195,6 +196,7 @@ export class NewsAnalyzer {
         'Reasoner returned an invalid draft contract',
       );
     validateReferences(proposed.data.drafts, context);
+    if (reasoner.review) validateFinalCalculations(first, proposed.data.drafts);
     const drafts = await insights.prepare(input, proposed.data.drafts, before.stateVersion);
     validateReferences(drafts, context);
     // InsightService commits every revision and completion receipt in one transaction,
