@@ -2,6 +2,7 @@ import { createProvider } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { setProvider, useModel } from '@flue/runtime';
 import { z } from 'zod';
+import { compactNewsToolFeedback } from './tool-feedback.ts';
 
 const modelEnvironment = z
   .object({
@@ -24,6 +25,7 @@ const settings = modelEnvironment.parse(process.env);
 
 export function createModelProvider(environment: NodeJS.ProcessEnv = process.env) {
   const settings = modelEnvironment.parse(environment);
+  const api = openAICompletionsApi();
   return createProvider({
     id: 'project',
     auth: {
@@ -46,7 +48,13 @@ export function createModelProvider(environment: NodeJS.ProcessEnv = process.env
         maxTokens: settings.LLM_MAX_TOKENS,
       },
     ],
-    api: openAICompletionsApi(),
+    api: {
+      ...api,
+      stream: (model, context, options) =>
+        api.stream(model, compactNewsToolFeedback(context), options),
+      streamSimple: (model, context, options) =>
+        api.streamSimple(model, compactNewsToolFeedback(context), options),
+    },
   });
 }
 

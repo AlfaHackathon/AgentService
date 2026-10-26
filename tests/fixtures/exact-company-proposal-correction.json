@@ -1,0 +1,705 @@
+{
+  "provenance": "Wholly synthetic retained production-attempt fixture; extracted from byte-verified source, no model calls or secrets. Original request HTTP bytes were not retained. The native input and invalid tool arguments below are exact retained values.",
+  "originalFixtureSha256": "432a6ee87d97b12ab9b7668aca2476e76956f9771da4d900784a715beeff2d41",
+  "nativeInputUtf8Bytes": 22261,
+  "nativeInputSha256": "6948e8e545745673c28e31016202b840e740cdbf2333c8edb86eeda02c8a8c81",
+  "invalidArgumentsUtf8Bytes": 13116,
+  "invalidArgumentsSha256": "f0bab779f2cf952b7c6760a5588d7e83da5c0165cf337c4dad6a86cae5eb9ec9",
+  "validationErrorUtf8Bytes": 16449,
+  "validationErrorSha256": "3cb833af7040e09e10dd6ed506256f4442c0617cdcb1b2e0fcbfdc02f3bc61fd",
+  "nativeInput": {
+    "request": {
+      "companyId": "8d545602-b87a-456b-9f7a-c26f235b3b52",
+      "newsMaterialId": "news-acedd08cf21045eb966df236aaedbc85ae67773e",
+      "newsVersionId": "v-21491c33ff60faa98658c777b01ab3de93c6e1a2",
+      "asOf": "2026-10-26T09:16:34.3844+00:00",
+      "retrievalQueries": [
+        "Companies with floating-rate loans explicitly indexed to FixtureBench-NewA-C3D06D85; identify contract index, reset dates, principal, margin, floors, caps, accrual convention and hedges",
+        "Synthetic benchmark increase 12% to 15% effective 2027; business financing cost exposure conditional on floating-rate contractual indexation"
+      ],
+      "retrievalLimit": 4,
+      "mechanisms": ["financing_cost"]
+    },
+    "context": {
+      "news": {
+        "materialId": "news-acedd08cf21045eb966df236aaedbc85ae67773e",
+        "versionId": "v-21491c33ff60faa98658c777b01ab3de93c6e1a2",
+        "sourceId": "synthetic-bounded-live-attempt8-finalfix",
+        "kind": "news",
+        "title": "Synthetic FixtureBench-NewA-C3D06D85 increase from 12 percent to 15 percent effective 1 January 2027",
+        "text": "WHOLLY SYNTHETIC PUBLIC TEST NEWS. The invented named index FixtureBench-NewA-C3D06D85 rises from 12 percent per annum to 15 percent per annum effective 2027-01-01 and remains at 15 percent throughout 2027. This is an invented scenario, not a claim about a real market index or an actual company outcome. The stated change concerns only FixtureBench-NewA-C3D06D85. A benchmark increase can raise contractual interest costs on floating-rate loans explicitly indexed to that benchmark, according to each contract reset schedule, principal, margin, floors, caps, accrual convention and hedges. Differently named or unidentified reference indexes are not established as the same index by this publication. Fixed contractual rates do not automatically reprice. A benchmark announcement alone does not establish actual interest payment or any company-wide result. The publication gives no company balances, portfolio totals or company-specific forecasts.",
+        "knownAt": "2026-10-26T09:16:34.3844+00:00",
+        "publishedAt": "2026-10-26T09:16:34.3844+00:00",
+        "provenance": {
+          "acquisition": "event_payload",
+          "sourceUrl": null,
+          "retrievedAt": "2026-10-26T09:16:34.3844+00:00",
+          "textCompleteness": "full",
+          "originVersionId": null,
+          "locator": "bounded-live-attempt8-finalfix-20261026T091636Z"
+        },
+        "correctsVersionId": null,
+        "companyIds": [],
+        "bankProfileIds": [],
+        "contentHash": "ac9e11c58c727c310f81a35363aca60efc8f3f88c1f7bf95f0a8e543229b6331"
+      },
+      "materials": [
+        {
+          "materialId": "synthetic-quality-20261025-producer-e-001-contract",
+          "versionId": "v1",
+          "sourceId": "synthetic-quality-once",
+          "kind": "company",
+          "title": "Invented FixtureLoan-E-001 complete annual terms",
+          "text": "SYNTHETIC INVENTED TEST ONLY. This document concerns only loan FixtureLoan-E-001 held by the invented Company E Producer. Principal is RUB 1000000 and is constant for every one of the 365 calendar days from 2027-01-01 through 2027-12-31 inclusive. Its contractual annual simple interest rate equals exactly the named index FixtureBench-E, with zero margin, no floor or cap, no compounding, fees, taxes, repayments or hedges. Before the announced change the index and contract rate are 12 percent per annum. The contract resets immediately on the effective date of any change to FixtureBench-E. Day count is Actual/365 Fixed; 2027 has exactly 365 interest-accrual days for this test. All interest for those365 days is paid once at the end of 2027-12-31. Principal and all other terms remain unchanged. This is one specific invented loan, not a claim about all obligations of the company. FixtureLoan-E-001 is distinct from the older invented contract material; this document neither replaces nor corrects that earlier loan. Consequences for this new loan must be assessed separately; no aggregate company-wide total is asserted. This document states contractual terms only. It does not establish any approved budget for 2027 or actual cash payments.",
+          "knownAt": "2026-10-25T16:27:20.325046+00:00",
+          "publishedAt": null,
+          "correctsVersionId": null,
+          "companyIds": ["8d545602-b87a-456b-9f7a-c26f235b3b52"],
+          "bankProfileIds": [],
+          "contentHash": "40abe62172c2060030d93dba4d112c331b8f58ff5d9451630c85622747a723b1"
+        },
+        {
+          "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan",
+          "versionId": "v1",
+          "sourceId": "synthetic-quality-once",
+          "kind": "company",
+          "title": "Invented independent Company E Producer unnamed-index loan",
+          "text": "SYNTHETIC INVENTED CONTRACT ONLY. Company E Producer holds a separate older loan FixtureLoan-E-Unnamed. Principal is RUB 1000000. Its annual rate equals an unnamed reference rate plus 2 percentage points. The reference rate was 10 percent. The identity of this reference index is not specified. This loan is distinct from FixtureLoan-E-001; neither contract replaces or corrects the other. No company-wide total is asserted.",
+          "knownAt": "2026-10-25T16:27:20.325046+00:00",
+          "publishedAt": null,
+          "correctsVersionId": null,
+          "companyIds": ["8d545602-b87a-456b-9f7a-c26f235b3b52"],
+          "bankProfileIds": [],
+          "contentHash": "f80c002b4f884b6680ffefd7770174cea139bc4c1bc5911ba9520987e5ab2d8b"
+        }
+      ],
+      "coverage": {
+        "complete": true,
+        "materialCount": 3,
+        "companyMaterialCount": 2,
+        "marketMaterialCount": 0,
+        "previousNewsVersionCount": 0,
+        "characters": 4313,
+        "asOf": "2026-10-26T09:16:34.3844+00:00",
+        "budget": {
+          "maximumCharacters": 120000,
+          "usedCharacters": 4313,
+          "omittedSources": [],
+          "stopReason": "within_budget"
+        }
+      },
+      "retrieval": {
+        "mode": "dense+lexical-rrf",
+        "reranker": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        "candidateCount": 4,
+        "selectedMaterials": 2,
+        "availableMaterials": 2,
+        "omittedMaterials": 0,
+        "exhaustive": true
+      }
+    },
+    "previousQuestions": [
+      {
+        "handle": "q0",
+        "literal": "company:8d545602-b87a-456b-9f7a-c26f235b3b52",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "qualitative",
+          "targetPeriod": "unknown",
+          "baselinePeriod": null,
+          "basis": "qualitative"
+        },
+        "economicObjectId": null,
+        "conclusion": "Неизвестно, влияет ли повышение FixtureBench-Z-Producer на ставку и расходы по FixtureLoan-E-Unnamed: договор привязывает ставку к неназванному индексу, а новость не связывает его с этим индексом. Денежный эффект не рассчитывается. Это не означает нулевой эффект, изменение договора или фактическую оплату; вывод ограничен данным займом и не является итогом по компании.",
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Собственный документ подтверждает отдельный заем FixtureLoan-E-Unnamed; однако он не идентифицирует базовый индекс. Новость прямо говорит, что FixtureBench-Z-Producer отличается от FixtureBench-E и не дает основания считать его неназванным индексом этого займа. Поэтому документированная экспозиция к займу есть, но эффект этой новости для него не установлен. Вывод не является совокупным эффектом компании.",
+            "assumptions": [],
+            "sourceHandles": ["s2"],
+            "unavailableSourceRefs": [
+              {
+                "materialId": "synthetic-quality-20261025-producer-e-002-news",
+                "versionId": "v1",
+                "contentHash": "2945f2f75f3bc608ff5a63c4911785c44f5e7af1ce8caf55ad31c6a9c2fe7a69"
+              }
+            ]
+          },
+          "conditions": [
+            {
+              "id": "news_z",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает, что FixtureBench-Z-Producer повышается с 8% до 10% годовых с 2027-01-01 по 2027-12-31, и указывает, что это иной индекс, чем FixtureBench-E.",
+              "predicate": "Новость устанавливает изменение только названного индекса FixtureBench-Z-Producer.",
+              "status": "supported",
+              "sourceHandles": [],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "synthetic-quality-20261025-producer-e-002-news",
+                  "versionId": "v1",
+                  "contentHash": "2945f2f75f3bc608ff5a63c4911785c44f5e7af1ce8caf55ad31c6a9c2fe7a69"
+                }
+              ]
+            },
+            {
+              "id": "loan_unnamed",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Ставка FixtureLoan-E-Unnamed равна неназванному референсному индексу плюс 2 процентных пункта; документ не указывает идентичность индекса.",
+              "predicate": "Чтобы связать событие с договорной ставкой, необходимо установить, что неназванный индекс займа — FixtureBench-Z-Producer.",
+              "status": "supported",
+              "sourceHandles": ["s2"]
+            },
+            {
+              "id": "index_identity",
+              "assertion": "derived",
+              "dependsOn": ["loan_unnamed", "news_z"],
+              "fact": "Имеющиеся документы не устанавливают, что индекс займа FixtureLoan-E-Unnamed — это FixtureBench-Z-Producer.",
+              "predicate": "Без идентификации индекса нельзя перенести объявленное изменение на ставку займа.",
+              "status": "unknown",
+              "sourceHandles": ["s2"],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "synthetic-quality-20261025-producer-e-002-news",
+                  "versionId": "v1",
+                  "contentHash": "2945f2f75f3bc608ff5a63c4911785c44f5e7af1ce8caf55ad31c6a9c2fe7a69"
+                }
+              ]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "unnamed_index_identity",
+              "fact": "Неизвестно, совпадает ли неназванный индекс в FixtureLoan-E-Unnamed с FixtureBench-Z-Producer.",
+              "query": null,
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan"
+            }
+          ]
+        },
+        "sourceHandles": ["s2"],
+        "unavailableSourceRefs": [
+          {
+            "materialId": "synthetic-quality-20261025-producer-e-002-news",
+            "versionId": "v1",
+            "contentHash": "2945f2f75f3bc608ff5a63c4911785c44f5e7af1ce8caf55ad31c6a9c2fe7a69"
+          }
+        ]
+      },
+      {
+        "handle": "q1",
+        "literal": "FixtureLoan-E-Unnamed",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "qualitative",
+          "targetPeriod": "unknown",
+          "baselinePeriod": null,
+          "basis": "qualitative"
+        },
+        "economicObjectId": null,
+        "conclusion": "Неизвестно, влияет ли объявленный рост FixtureBench-NewA-C3D06D85 на ставку и расходы FixtureLoan-E-Unnamed: договор указывает неназванный индекс, а новость не устанавливает, что это тот же индекс. Денежный эффект не рассчитывается, фактическая оплата не установлена. Это не означает нулевой эффект; вывод относится только к этому займу и не является совокупным результатом по компании.",
+        "assessment": {
+          "applicability": {
+            "status": "unknown",
+            "basis": "documented_exposure",
+            "explanation": "Собственный документ подтверждает отдельный заем с неназванным референсным индексом, но не позволяет установить его идентичность индексу новости. Retrieval охватывает предоставленные материалы, но не доказывает отсутствие иных договоров или экспозиций.",
+            "assumptions": [],
+            "sourceHandles": ["s2"]
+          },
+          "conditions": [
+            {
+              "id": "newa_increase",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает рост FixtureBench-NewA-C3D06D85 с 12% до 14% годовых с 2027-01-01 и сохранение 14% в течение 2027 года.",
+              "predicate": "Изменение касается названного в новости индекса.",
+              "status": "supported",
+              "sourceHandles": [],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+                  "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+                  "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+                }
+              ]
+            },
+            {
+              "id": "unnamed_index_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Ставка FixtureLoan-E-Unnamed равна неназванному референсному индексу плюс 2 процентных пункта; договор не идентифицирует индекс.",
+              "predicate": "Для вывода о переносе новости на заем требуется установить идентичность референсного индекса.",
+              "status": "supported",
+              "sourceHandles": ["s2"]
+            },
+            {
+              "id": "index_identity_unknown",
+              "assertion": "derived",
+              "dependsOn": ["newa_increase", "unnamed_index_terms", "unnamed_index_identity"],
+              "fact": "Не установлено, совпадает ли неназванный индекс займа с FixtureBench-NewA-C3D06D85.",
+              "predicate": "Без подтверждённой идентичности индекса влияние новости на ставку и расходы по займу неизвестно.",
+              "status": "unknown",
+              "sourceHandles": ["s2"],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+                  "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+                  "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+                }
+              ]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "unnamed_index_identity",
+              "fact": "Неизвестно, совпадает ли неназванный референсный индекс FixtureLoan-E-Unnamed с FixtureBench-NewA-C3D06D85.",
+              "query": "Проверить по договору или иному собственному документу компании точное наименование референсного индекса FixtureLoan-E-Unnamed и определить, является ли им FixtureBench-NewA-C3D06D85.",
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan"
+            }
+          ]
+        },
+        "sourceHandles": ["s2"],
+        "unavailableSourceRefs": [
+          {
+            "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+            "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+            "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+          }
+        ]
+      },
+      {
+        "handle": "q2",
+        "literal": "FixtureLoan-E-001",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "qualitative",
+          "targetPeriod": "unknown",
+          "baselinePeriod": null,
+          "basis": "qualitative"
+        },
+        "economicObjectId": null,
+        "conclusion": "Эта новость не устанавливает изменение ставки или расходов по FixtureLoan-E-001: договор привязан к FixtureBench-E, а публикация сообщает об изменении только отдельно названного FixtureBench-NewA-C3D06D85. Это оценка воздействия именно этой новости, а не нулевой расход, отмена или пересмотр прежнего последствия по другой новости. Фактическая оплата не оценивается; вывод не является итогом по всем обязательствам компании.",
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Договор компании подтверждает FixtureLoan-E-001 и привязку к FixtureBench-E. Договор касается только этого займа; покрытие retrieval не позволяет делать вывод о совокупности обязательств компании.",
+            "assumptions": [],
+            "sourceHandles": ["s1"]
+          },
+          "conditions": [
+            {
+              "id": "named_index_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает рост FixtureBench-NewA-C3D06D85 с 12% до 14% годовых с 2027-01-01 и сохранение 14% в течение 2027 года.",
+              "predicate": "Объявленное изменение относится только к названному в новости индексу.",
+              "status": "supported",
+              "sourceHandles": [],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+                  "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+                  "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+                }
+              ]
+            },
+            {
+              "id": "loan_index",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-E-001 привязывает ставку к FixtureBench-E.",
+              "predicate": "Договор идентифицирует индекс займа как FixtureBench-E, а не как FixtureBench-NewA-C3D06D85.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "no_established_effect",
+              "assertion": "derived",
+              "dependsOn": ["named_index_change", "loan_index"],
+              "fact": "Эта новость не устанавливает изменение ставки или расходов по FixtureLoan-E-001.",
+              "predicate": "Поскольку новость относится только к иному именованному индексу, она не устанавливает изменение договорного индекса FixtureBench-E.",
+              "status": "supported",
+              "sourceHandles": ["s1"],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+                  "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+                  "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+                }
+              ]
+            }
+          ],
+          "unknowns": []
+        },
+        "sourceHandles": ["s1"],
+        "unavailableSourceRefs": [
+          {
+            "materialId": "news-a4c59abd8d9e19929d12bb445ee7f2bb783e6ce6",
+            "versionId": "v-a3c2cd37de803f43a90cbed9c82993a6b43ee200",
+            "contentHash": "a509579a13cd824d5bce1acbad94e9bf845f378d2f979d2db832cde9147427fa"
+          }
+        ]
+      },
+      {
+        "handle": "q3",
+        "literal": "company:8d545602-b87a-456b-9f7a-c26f235b3b52",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "RUB",
+          "targetPeriod": "2027",
+          "baselinePeriod": null,
+          "basis": "annual_run_rate"
+        },
+        "economicObjectId": "FixtureLoan-E-001",
+        "conclusion": "Расчётное изменение от события: 20000 RUB; период 2027; объект company:8d545602-b87a-456b-9f7a-c26f235b3b52. Применимость определяется сохранёнными условиями и статусом основания. Расчёт не подтверждает фактическую оплату.",
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Собственный договор компании прямо идентифицирует FixtureLoan-E-001 и ставку, привязанную к FixtureBench-E. Вывод касается только этого договора; он не является совокупным эффектом по компании.",
+            "assumptions": [],
+            "sourceHandles": ["s1"]
+          },
+          "conditions": [
+            {
+              "id": "index_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "FixtureBench-E повышается с 12% до 14% годовых с 2027-01-01 и остаётся на уровне 14% до 2027-12-31.",
+              "predicate": "Индексное изменение действует в указанный период.",
+              "status": "supported",
+              "sourceHandles": [],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "synthetic-quality-20261025-producer-e-001-news",
+                  "versionId": "v1",
+                  "contentHash": "ed241491f6328fdae9204b3dc908592c8aa473d1dbacb271a59792ffd64744d6"
+                }
+              ]
+            },
+            {
+              "id": "loan_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "FixtureLoan-E-001 имеет основной долг RUB 1000000 неизменно в течение 365 дней 2027 года; ставка равна FixtureBench-E, без маржи, floor и cap, пересмотр немедленный; проценты простые, Actual/365 Fixed.",
+              "predicate": "Договорные условия обеспечивают перенос изменения индекса в ставку займа на весь 2027 год.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "interest_delta",
+              "assertion": "derived",
+              "dependsOn": ["index_change", "loan_terms"],
+              "fact": "Дополнительные договорные процентные расходы по FixtureLoan-E-001 за 2027 год составляют RUB 20000 относительно контрфакта сохранения ставки 12% на тот же период.",
+              "predicate": "1000000*(0.14-0.12) за 365/365 дней дает прирост RUB 20000.",
+              "status": "supported",
+              "sourceHandles": ["s1"],
+              "unavailableSourceRefs": [
+                {
+                  "materialId": "synthetic-quality-20261025-producer-e-001-news",
+                  "versionId": "v1",
+                  "contentHash": "ed241491f6328fdae9204b3dc908592c8aa473d1dbacb271a59792ffd64744d6"
+                }
+              ]
+            }
+          ],
+          "unknowns": []
+        },
+        "sourceHandles": ["s1"],
+        "unavailableSourceRefs": [
+          {
+            "materialId": "synthetic-quality-20261025-producer-e-001-news",
+            "versionId": "v1",
+            "contentHash": "ed241491f6328fdae9204b3dc908592c8aa473d1dbacb271a59792ffd64744d6"
+          }
+        ]
+      }
+    ],
+    "objectCatalog": [
+      {
+        "handle": "o0",
+        "literal": "company:8d545602-b87a-456b-9f7a-c26f235b3b52",
+        "sourceHandles": []
+      },
+      {
+        "handle": "o1",
+        "literal": "FixtureLoan-E-001",
+        "sourceHandles": ["s1"]
+      },
+      {
+        "handle": "o2",
+        "literal": "FixtureLoan-E-Unnamed",
+        "sourceHandles": ["s2"]
+      }
+    ],
+    "economicObjectCatalog": [
+      {
+        "handle": "e0",
+        "economicObjectId": "FixtureLoan-E-001",
+        "companyId": "8d545602-b87a-456b-9f7a-c26f235b3b52",
+        "evidence": [
+          {
+            "sourceHandle": "s1",
+            "materialId": "synthetic-quality-20261025-producer-e-001-contract",
+            "versionId": "v1",
+            "contentHash": "40abe62172c2060030d93dba4d112c331b8f58ff5d9451630c85622747a723b1",
+            "quote": "loan FixtureLoan-E-001"
+          }
+        ]
+      },
+      {
+        "handle": "e1",
+        "economicObjectId": "ONLY",
+        "companyId": "8d545602-b87a-456b-9f7a-c26f235b3b52",
+        "evidence": [
+          {
+            "sourceHandle": "s2",
+            "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan",
+            "versionId": "v1",
+            "contentHash": "f80c002b4f884b6680ffefd7770174cea139bc4c1bc5911ba9520987e5ab2d8b",
+            "quote": "CONTRACT ONLY."
+          }
+        ]
+      }
+    ],
+    "sourceCatalog": [
+      {
+        "handle": "s0",
+        "materialId": "news-acedd08cf21045eb966df236aaedbc85ae67773e",
+        "versionId": "v-21491c33ff60faa98658c777b01ab3de93c6e1a2",
+        "contentHash": "ac9e11c58c727c310f81a35363aca60efc8f3f88c1f7bf95f0a8e543229b6331"
+      },
+      {
+        "handle": "s1",
+        "materialId": "synthetic-quality-20261025-producer-e-001-contract",
+        "versionId": "v1",
+        "contentHash": "40abe62172c2060030d93dba4d112c331b8f58ff5d9451630c85622747a723b1"
+      },
+      {
+        "handle": "s2",
+        "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan",
+        "versionId": "v1",
+        "contentHash": "f80c002b4f884b6680ffefd7770174cea139bc4c1bc5911ba9520987e5ab2d8b"
+      }
+    ]
+  },
+  "invalidToolArguments": {
+    "drafts": [
+      {
+        "category": "risk",
+        "objectHandle": "o1",
+        "question": {
+          "mechanism": "financing_cost",
+          "frame": "event_only",
+          "unit": "RUB",
+          "targetPeriod": "2027",
+          "baselinePeriod": null,
+          "basis": "annual_run_rate"
+        },
+        "status": "announced",
+        "conclusion": "По документированному займу FixtureLoan-E-001 новость устанавливает увеличение договорных процентных расходов за 2027 год на RUB 30000 относительно контрфакта сохранения ставки 12% на тот же период: индекс FixtureBench-E в договоре равен 12% до изменения и далее по договорным условиям, а новость сообщает для FixtureBench-NewA-C3D06D85 изменение с 12% до 15% с 2027-01-01. Однако договор индексов не связывает: FixtureLoan-E-001 привязан к FixtureBench-E, тогда как новость прямо ограничивает изменение FixtureBench-NewA-C3D06D85. Поэтому причинная применимость новости к этому займу не установлена, и расчет не подтвержден как воздействие новости; фактическая оплата также не установлена. Предыдущий эффект, связанный с другим изменением FixtureBench-E, здесь не переоценивается и не отменяется. Вывод только по этому займу, не совокупный итог компании.",
+        "assessment": {
+          "applicability": {
+            "status": "unknown",
+            "basis": "documented_exposure",
+            "explanation": "Собственный договор документирует FixtureLoan-E-001, но идентифицирует его индекс как FixtureBench-E, а не индекс новости FixtureBench-NewA-C3D06D85. Документированная экспозиция по займу не устанавливает экспозицию именно к индексу новости. Материалы retrieval не исчерпывают возможные обязательства компании.",
+            "sourceHandles": ["s1"],
+            "assumptions": []
+          },
+          "conditions": [
+            {
+              "id": "news_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает, что FixtureBench-NewA-C3D06D85 повышается с 12% до 15% годовых с 2027-01-01 и остается на 15% в течение 2027 года; публикация касается только этого названного индекса.",
+              "predicate": "Изменение ставки относится исключительно к указанному в новости индексу.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "loan_terms",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-E-001 устанавливает основной долг RUB 1000000 в течение 2027 года и ставку, равную индексу FixtureBench-E; изменение договора не связано в документе с FixtureBench-NewA-C3D06D85.",
+              "predicate": "Договорная ставка зависит от идентифицированного в договоре индекса, условия займа не устанавливают, что это индекс новости.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "index_relation",
+              "assertion": "derived",
+              "dependsOn": ["news_change", "loan_terms", "index_identity_unknown"],
+              "fact": "Не установлено, что FixtureBench-E в договоре FixtureLoan-E-001 является FixtureBench-NewA-C3D06D85 из новости.",
+              "predicate": "Без подтверждения тождества индексов новостное изменение нельзя перенести на договорную ставку займа.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s1"]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "index_identity_unknown",
+              "fact": "Неизвестно, является ли FixtureBench-E из договора FixtureLoan-E-001 тем же индексом, что FixtureBench-NewA-C3D06D85 из новости.",
+              "query": "Проверить по собственным договорным документам компании, совпадает ли FixtureBench-E, указанный в FixtureLoan-E-001, с FixtureBench-NewA-C3D06D85 из новости; установить наличие договорной связи между этими индексами.",
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-producer-e-001-contract"
+            }
+          ]
+        },
+        "impact": {
+          "metric": "expense_delta",
+          "amountBasis": "unknown",
+          "economicObjectHandle": null,
+          "evidenceStatus": "unknown",
+          "importance": 0,
+          "urgency": 0,
+          "novelty": 0
+        },
+        "companyImportance": {
+          "score": 2,
+          "rationale": "Компания документированно имеет заем с плавающей ставкой и известным основным долгом в 2027 году, но связь договорного индекса с индексом новости не установлена; поэтому важность для компании умеренная, без подтвержденного воздействия или срочного решения.",
+          "evidenceSourceHandles": ["s1"]
+        },
+        "sourceHandles": ["s0", "s1"]
+      },
+      {
+        "category": "null",
+        "objectHandle": "o2",
+        "question": "q1",
+        "status": "unknown",
+        "conclusion": "Неизвестно, влияет ли объявленный рост FixtureBench-NewA-C3D06D85 на ставку или расходы FixtureLoan-E-Unnamed: собственный договор указывает неназванный референсный индекс, а новость относится только к отдельно названному индексу и не устанавливает их тождество. Денежный эффект и фактическая оплата не установлены; это не нулевой эффект. Вывод ограничен этим займом и не является итогом по компании.",
+        "assessment": {
+          "applicability": {
+            "status": "unknown",
+            "basis": "documented_exposure",
+            "explanation": "Собственный документ подтверждает заем с плавающей ставкой, но не идентифицирует референсный индекс как FixtureBench-NewA-C3D06D85. Материалы retrieval не доказывают отсутствие иных обязательств.",
+            "sourceHandles": ["s2"],
+            "assumptions": []
+          },
+          "conditions": [
+            {
+              "id": "news_index_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает увеличение FixtureBench-NewA-C3D06D85 с 12% до 15% годовых с 2027-01-01 и сохранение 15% в течение 2027 года.",
+              "predicate": "Изменение относится только к названному в новости индексу.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "loan_unnamed_index",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-E-Unnamed устанавливает ставку как неназванный референсный индекс плюс 2 процентных пункта; точная идентичность индекса не приведена.",
+              "predicate": "Для установления воздействия новости требуется идентифицировать референсный индекс займа.",
+              "status": "supported",
+              "sourceHandles": ["s2"]
+            },
+            {
+              "id": "index_identity",
+              "assertion": "derived",
+              "dependsOn": ["news_index_change", "loan_unnamed_index", "unnamed_index_unknown"],
+              "fact": "Не установлено, совпадает ли неназванный индекс FixtureLoan-E-Unnamed с FixtureBench-NewA-C3D06D85.",
+              "predicate": "Без установления идентичности индекса нельзя определить, меняет ли новость договорную ставку и процентные расходы займа.",
+              "status": "unknown",
+              "sourceHandles": ["s0", "s2"]
+            }
+          ],
+          "unknowns": [
+            {
+              "id": "unnamed_index_unknown",
+              "fact": "Неизвестно, является ли неназванный референсный индекс FixtureLoan-E-Unnamed индексом FixtureBench-NewA-C3D06D85.",
+              "query": "Проверить по договору или иному собственному документу компании точное наименование референсного индекса FixtureLoan-E-Unnamed и определить, является ли им FixtureBench-NewA-C3D06D85.",
+              "scope": "company",
+              "materialId": "synthetic-quality-20261025-producer-e-unnamed-loan"
+            }
+          ]
+        },
+        "impact": {
+          "metric": "risk",
+          "amountBasis": "qualitative",
+          "economicObjectHandle": null,
+          "evidenceStatus": "unknown",
+          "importance": 0,
+          "urgency": 0,
+          "novelty": 0
+        },
+        "companyImportance": {
+          "score": 2,
+          "rationale": "Собственный материал подтверждает отдельный заем с плавающей ставкой, но не раскрывает идентичность индекса и период его возможного изменения; важность для компании нельзя оценить выше умеренной без подтверждения связи с новостью.",
+          "evidenceSourceHandles": ["s2"]
+        },
+        "sourceHandles": ["s0", "s2"]
+      },
+      {
+        "category": "null",
+        "objectHandle": "o1",
+        "question": "q2",
+        "status": "unaffected",
+        "conclusion": "Новость не устанавливает изменения ставки или расходов по FixtureLoan-E-001: договор привязан к FixtureBench-E, а новость сообщает об изменении только FixtureBench-NewA-C3D06D85. Это оценка воздействия именно текущей новости, а не нулевой абсолютный расход, не отмена и не переоценка прежнего эффекта по отдельному событию FixtureBench-E. Фактическая оплата не оценивается; вывод не является совокупным итогом компании.",
+        "assessment": {
+          "applicability": {
+            "status": "established",
+            "basis": "documented_exposure",
+            "explanation": "Договор компании документирует FixtureLoan-E-001 и привязку к FixtureBench-E; новость прямо касается только отдельно названного индекса FixtureBench-NewA-C3D06D85. Retrieval неполнота за пределами представленных материалов не позволяет делать вывод о совокупности обязательств компании.",
+            "sourceHandles": ["s1"],
+            "assumptions": []
+          },
+          "conditions": [
+            {
+              "id": "newa_change",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Новость сообщает рост FixtureBench-NewA-C3D06D85 с 12% до 15% годовых с 2027-01-01 и сохранение 15% в течение 2027 года; изменение относится только к этому индексу.",
+              "predicate": "Новость не объявляет изменение FixtureBench-E.",
+              "status": "supported",
+              "sourceHandles": ["s0"]
+            },
+            {
+              "id": "loan_e_index",
+              "assertion": "observed",
+              "dependsOn": [],
+              "fact": "Договор FixtureLoan-E-001 привязывает ставку к FixtureBench-E.",
+              "predicate": "Договор идентифицирует индекс займа как FixtureBench-E.",
+              "status": "supported",
+              "sourceHandles": ["s1"]
+            },
+            {
+              "id": "no_effect_from_news",
+              "assertion": "derived",
+              "dependsOn": ["newa_change", "loan_e_index"],
+              "fact": "Текущая новость не устанавливает изменение договорной ставки или расходов по FixtureLoan-E-001.",
+              "predicate": "Поскольку публикация сообщает изменение только другого названного индекса, она не устанавливает изменение индекса договора.",
+              "status": "supported",
+              "sourceHandles": ["s0", "s1"]
+            }
+          ],
+          "unknowns": []
+        },
+        "impact": {
+          "metric": "risk",
+          "amountBasis": "qualitative",
+          "economicObjectHandle": null,
+          "evidenceStatus": "unaffected",
+          "importance": 0,
+          "urgency": 0,
+          "novelty": 0
+        },
+        "companyImportance": {
+          "score": 2,
+          "rationale": "Заем и его договорный индекс документированы, что позволяет проверить новость и исключить установленный ею перенос на этот договор; сумма и связь с новостью не создают подтвержденного неблагоприятного воздействия. Значимость ограничена конкретным займом.",
+          "evidenceSourceHandles": ["s1"]
+        },
+        "sourceHandles": ["s0", "s1"]
+      }
+    ]
+  },
+  "retainedToolCallId": "call_GZxzLGn8djLZLG4MUrEeroX1"
+}
