@@ -43,6 +43,8 @@ export function compactNewsToolFeedback(context: TranscriptContext): TranscriptC
         return part;
       }
       const errors = part.text.slice(prefix.length, boundary).split('\n').filter(Boolean);
+      const envelopeError =
+        message.toolName === 'submit_news_analysis' && invalidCompanyEnvelope(call.arguments);
       // Union validators report several overlapping failures for the same path.
       // Keep one representative per path; the complete schema remains in tools.
       const paths = new Set<string>();
@@ -52,7 +54,11 @@ export function compactNewsToolFeedback(context: TranscriptContext): TranscriptC
         paths.add(path);
         return true;
       });
-      const issues = distinct.slice(0, 8).map((issue) => {
+      // A malformed envelope can produce many redundant root-field errors before
+      // the actionable item failures. Keep each broken draft visible first.
+      const prioritized =
+        message.toolName === 'submit_news_analysis' ? prioritizeDraftIssues(distinct) : distinct;
+      const issues = prioritized.slice(0, 8).map((issue) => {
         let bounded = '';
         for (const character of issue) {
           if (Buffer.byteLength(bounded + character, 'utf8') > 160) return `${bounded}…`;
@@ -69,7 +75,9 @@ export function compactNewsToolFeedback(context: TranscriptContext): TranscriptC
           issueCount: errors.length,
           detailsOmitted:
             errors.length > issues.length || errors.some((error, i) => error !== issues[i]),
-          instruction: 'Fix against the full schema; preserve evidence and unknowns.',
+          instruction: envelopeError
+            ? 'Use {drafts:[{...}]}; every item must be an object. Put draft fields inside each item, never at top-level. Fix against the full schema; preserve evidence and unknowns.'
+            : 'Fix against the full schema; preserve evidence and unknowns.',
         });
       while (issues.length && Buffer.byteLength(feedback(), 'utf8') > maximumFeedbackBytes)
         issues.pop();
@@ -80,4 +88,27 @@ export function compactNewsToolFeedback(context: TranscriptContext): TranscriptC
     return { ...message, content };
   });
   return changed ? { ...context, messages } : context;
+}
+
+function prioritizeDraftIssues(issues: string[]) {
+  const drafts = new Set<string>();
+  const first: string[] = [];
+  const remaining: string[] = [];
+  for (const issue of issues) {
+    const index = /^\s*-\s*(?:drafts\.(\d+)|\/drafts\/(\d+))(?:[.:/])/.exec(issue);
+    const key = index?.[1] ?? index?.[2];
+    if (key && !drafts.has(key)) {
+      drafts.add(key);
+      first.push(issue);
+    } else remaining.push(issue);
+  }
+  return [...first, ...remaining];
+}
+
+// Structural guidance only: field requirements and values remain in the tool schema.
+function invalidCompanyEnvelope(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
+  if (Object.keys(value).some((key) => key !== 'drafts')) return true;
+  if (!('drafts' in value) || !Array.isArray(value.drafts)) return true;
+  return value.drafts.some((draft) => !draft || typeof draft !== 'object' || Array.isArray(draft));
 }
