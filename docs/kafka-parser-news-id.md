@@ -71,3 +71,5 @@ Mongo документ изменяемый: повторное чтение т�
 - Без новых migrations/dependencies/ports/ACL. Agent-only deployment; Context admission и Insight job APIs прежние.
 - Откат к старому Agent снова делает новые двухполевые references неподдерживаемыми: они будут blocked без ack. Offset reset/skip не является частью rollback.
 - Это закрывает ingress adapter, не подтверждает live Kafka/full NewsFlow качество. Проверки в этой ветке model-free, unit fixtures; production не трогается.
+
+Для controlled cutover, одного synthetic Kafka record и отдельного решения о backlog см. [release-owner handoff](kafka-parser-controlled-cutover.md). Обычный enable не ограничивает число сообщений или модельных вызовов; consumer и job worker имеют разные lifecycle.
