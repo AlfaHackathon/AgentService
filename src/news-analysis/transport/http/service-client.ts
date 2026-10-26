@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { narrativeValidationError } from '../../contracts/calculation-claim.ts';
 import { type AnalysisErrorStatus, NewsAnalysisError } from '../../contracts/errors.ts';
+import {
+  insightPlainTextCode,
+  insightPlainTextMessage,
+} from '../../contracts/insight-plain-text.ts';
 import { internalSecret, serviceUrl } from './settings.ts';
 
 const upstreamErrorSchema = z.union([
@@ -94,17 +98,28 @@ export class ServiceClient {
         const payload: unknown = await response.json();
         if (!response.ok) {
           const problem = upstreamErrorSchema.safeParse(payload);
-          const narrative = problem.success
-            ? (narrativeValidationError(problem.data.code) ??
-              narrativeValidationError(problem.data.message))
-            : undefined;
+          const plainText =
+            problem.success &&
+            [problem.data.code, problem.data.message].some(
+              (value) => value.split(/[:\s]/u, 1)[0] === insightPlainTextCode,
+            )
+              ? { code: insightPlainTextCode, message: insightPlainTextMessage }
+              : undefined;
+          const narrative =
+            plainText ??
+            (problem.success
+              ? (narrativeValidationError(problem.data.code) ??
+                narrativeValidationError(problem.data.message))
+              : undefined);
           const unknownNarrative =
             problem.success &&
             !narrative &&
             (problem.data.code.startsWith('CONCLUSION_') ||
               problem.data.message.startsWith('CONCLUSION_') ||
               problem.data.code.startsWith('TITLE_') ||
-              problem.data.message.startsWith('TITLE_'));
+              problem.data.message.startsWith('TITLE_') ||
+              problem.data.code.startsWith('INSIGHT_PLAIN_TEXT_') ||
+              problem.data.message.startsWith('INSIGHT_PLAIN_TEXT_'));
           throw new NewsAnalysisError(
             publicUpstreamStatus(response.status),
             narrative?.code ??

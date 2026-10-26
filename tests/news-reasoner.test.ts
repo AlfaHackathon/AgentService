@@ -558,6 +558,87 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(JSON.stringify(request.messages)).not.toContain('native-test-key');
   });
 
+  it('explains misplaced company fields and every malformed draft before one bounded correction', async () => {
+    const valid = newLoanQuestionResult();
+    const { conclusion, status, impact, companyImportance, sourceHandles, ...partial } = z
+      .record(z.string(), z.unknown())
+      .parse(valid.drafts[0]);
+    const malformed = {
+      conclusion,
+      status,
+      impact,
+      companyImportance,
+      sourceHandles,
+      drafts: [partial, 'synthetic non-object draft'],
+    };
+    const { reasoner, requests } = await adapter(malformed, true, 'submit_news_analysis', valid);
+    const result = await reasoner.analyze({
+      request: structuredClone(questionBindingReplay.request),
+      context: structuredClone(questionBindingReplay.context),
+      previousEffects: [],
+    });
+    expect(result).toHaveLength(1);
+    expect(requests).toHaveLength(2);
+    const wire = z
+      .object({
+        messages: z.array(z.object({ role: z.string(), content: z.unknown() })),
+        tools: z.array(
+          z.object({
+            function: z.object({
+              name: z.string(),
+              parameters: z.record(z.string(), z.unknown()),
+            }),
+          }),
+        ),
+      })
+      .parse(requests[1]);
+    const schema = wire.tools.find((t) => t.function.name === 'submit_news_analysis')?.function
+      .parameters;
+    expect(schema).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['drafts'],
+      properties: {
+        drafts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: expect.arrayContaining(['conclusion', 'status', 'impact', 'sourceHandles']),
+          },
+        },
+      },
+    });
+    const feedback = z.string().parse(wire.messages.find((m) => m.role === 'tool')?.content);
+    expect(feedback).toContain('drafts.0');
+    expect(feedback).toContain('drafts.1');
+    expect(feedback).toContain('top-level');
+    expect(feedback).toContain('conclusion');
+    expect(Buffer.byteLength(feedback, 'utf8')).toBeLessThanOrEqual(512);
+    expect(result[0]?.assessment?.unknowns).toMatchObject([{ id: 'index_identity_unknown' }]);
+  });
+
+  it('fails after two malformed company envelopes without accepting an empty result or a third submission', async () => {
+    const valid = newLoanQuestionResult();
+    const { conclusion, status, impact, sourceHandles, ...partial } = z
+      .record(z.string(), z.unknown())
+      .parse(valid.drafts[0]);
+    const malformed = { conclusion, status, impact, sourceHandles, drafts: [partial, null] };
+    const call = { name: 'submit_news_analysis', arguments: malformed };
+    const requests = await toolSequence([
+      call,
+      call,
+      { name: 'submit_news_analysis', arguments: valid },
+    ]);
+    await expect(
+      createNativeNewsReasoner().analyze({
+        request: structuredClone(questionBindingReplay.request),
+        context: structuredClone(questionBindingReplay.context),
+        previousEffects: [],
+      }),
+    ).rejects.toMatchObject({ status: 502, code: 'INVALID_REASONING_RESULT' });
+    expect(requests).toHaveLength(2);
+  });
+
   it('rejects plain text and malformed tool results without fabricating drafts', async () => {
     const plain = await adapter({ drafts: [] }, false);
     await expect(plain.reasoner.analyze(input)).rejects.toMatchObject({

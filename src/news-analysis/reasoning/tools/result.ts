@@ -7,6 +7,7 @@ import {
   useTool,
 } from '@flue/runtime';
 import type * as v from 'valibot';
+import { validateInsightResultText } from '../../contracts/insight-plain-text.ts';
 import type { SignalInventory } from '../../contracts/signals.ts';
 import type { SourceUnit } from '../../retrieval/source-units.ts';
 import type { ToolScope } from '../../retrieval/tool-evidence.ts';
@@ -80,6 +81,7 @@ export function useResultTool(
       }
       let result: Record<string, unknown>;
       try {
+        validateInsightResultText(name, data);
         result = normalize ? normalize(data) : data;
         await validate?.(result);
       } catch (error) {
