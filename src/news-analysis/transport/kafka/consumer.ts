@@ -3,7 +3,7 @@ import { type Consumer, type EachBatchPayload, Kafka, logLevel, type SASLOptions
 import { z } from 'zod';
 import type { NewsFlow } from '../../application/news-flow.ts';
 import { NewsAnalysisError } from '../../contracts/errors.ts';
-import { parseNewsKafkaEvent } from '../../contracts/news-event.ts';
+import { parseNewsKafkaEvent, type ResolveParserNews } from '../../contracts/news-event.ts';
 
 const field = (max: number) => z.string().trim().min(1).max(max);
 const flag = z.enum(['true', 'false']);
@@ -67,6 +67,7 @@ export class NewsKafkaConsumer {
     groupId: string,
     fromBeginning = true,
     log: Log = (entry) => console.log(JSON.stringify(entry)),
+    private readonly resolveParserNews?: ResolveParserNews,
   ) {
     this.consumer = consumer;
     this.flow = flow;
@@ -166,13 +167,33 @@ export class NewsKafkaConsumer {
       let job: Awaited<ReturnType<NewsFlow['ingest']>>;
       let heartbeatFailure: unknown;
       let pendingHeartbeat = Promise.resolve();
-      const timer = setInterval(() => {
-        pendingHeartbeat = pendingHeartbeat.then(heartbeat).catch((error: unknown) => {
-          heartbeatFailure = error;
-        });
-      }, 2500);
-      timer.unref();
+      const startHeartbeat = () => {
+        const interval = setInterval(() => {
+          pendingHeartbeat = pendingHeartbeat.then(heartbeat).catch((error: unknown) => {
+            heartbeatFailure = error;
+          });
+        }, 2500);
+        interval.unref();
+        return interval;
+      };
+      let timer = startHeartbeat();
       try {
+        if ('parserNewsId' in event) {
+          if (!this.resolveParserNews)
+            throw new NewsAnalysisError(
+              422,
+              'PARSER_NEWS_NOT_CONFIGURED',
+              'NEWS_SERVICE_URL is required to resolve parser references.',
+            );
+          event = await this.resolveParserNews(event);
+          // Freeze and drain read-phase heartbeats before entering durable admission.
+          // A pending failure must not be discovered only after the job was written.
+          clearInterval(timer);
+          await pendingHeartbeat;
+          if (this.stopped || !isRunning() || isStale()) break;
+          if (heartbeatFailure) throw heartbeatFailure;
+          timer = startHeartbeat();
+        }
         job = await this.flow.ingest(event);
       } catch (error) {
         if (
@@ -245,6 +266,7 @@ export class NewsKafkaConsumer {
 export function createNewsKafkaConsumer(
   flow: Pick<NewsFlow, 'ingest'>,
   environment: NodeJS.ProcessEnv = process.env,
+  resolveParserNews?: ResolveParserNews,
 ) {
   if (environment.NEWS_KAFKA_ENABLED !== 'true') {
     if (environment.NEWS_KAFKA_ENABLED && environment.NEWS_KAFKA_ENABLED !== 'false')
@@ -286,6 +308,8 @@ export function createNewsKafkaConsumer(
     s.NEWS_KAFKA_TOPIC,
     s.NEWS_KAFKA_GROUP_ID,
     s.NEWS_KAFKA_FROM_BEGINNING === 'true',
+    undefined,
+    resolveParserNews,
   );
   consumer.on(consumer.events.CRASH, ({ payload }) => pump.crashed(payload.restart));
   consumer.on(consumer.events.GROUP_JOIN, () => pump.joined());

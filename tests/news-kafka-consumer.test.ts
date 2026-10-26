@@ -2,7 +2,10 @@ import type { Consumer, EachBatchPayload, KafkaMessage } from 'kafkajs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NewsAnalysisError } from '../src/news-analysis/contracts/errors.ts';
 import { flowRequestSchema, jobSchema } from '../src/news-analysis/contracts/flow.ts';
-import { parseNewsKafkaEvent } from '../src/news-analysis/contracts/news-event.ts';
+import {
+  parseNewsKafkaEvent,
+  type ResolveParserNews,
+} from '../src/news-analysis/contracts/news-event.ts';
 import { FlowContextClient, FlowJobClient } from '../src/news-analysis/retrieval/flow-clients.ts';
 import {
   createNewsKafkaConsumer,
@@ -34,7 +37,7 @@ const job = jobSchema.parse({
   updatedAt: event.PublishedAt,
 });
 
-function fixture() {
+function fixture(resolveParserNews?: ResolveParserNews) {
   const port = {
     connect: vi.fn<Consumer['connect']>(async () => {}),
     subscribe: vi.fn<Consumer['subscribe']>(async () => {}),
@@ -52,6 +55,7 @@ function fixture() {
     'agent-service-news-v1',
     true,
     log,
+    resolveParserNews,
   );
   return { port, flow, log, pump };
 }
@@ -259,6 +263,245 @@ describe('current NewsEventMessage Kafka boundary', () => {
     if (!release) throw new Error('Missing deferred admission');
     release(job);
     await work;
+    await f.pump.stop();
+  });
+  it('resolves parser ID under heartbeats, then waits for durable admission before acknowledging', async () => {
+    const id = '0123456789abcdef01234567';
+    let releaseRead: ((value: Awaited<ReturnType<ResolveParserNews>>) => void) | undefined;
+    const resolve = vi.fn<ResolveParserNews>(
+      () =>
+        new Promise((done) => {
+          releaseRead = done;
+        }),
+    );
+    const f = fixture(resolve);
+    await start(f);
+    vi.useFakeTimers();
+    let releaseSave: ((value: typeof job) => void) | undefined;
+    f.flow.ingest.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          releaseSave = done;
+        }),
+    );
+    const payload = batch([Buffer.from(JSON.stringify({ Source: 'Tass', Id: id }))]);
+    const work = f.pump.eachBatch(payload);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(resolve).toHaveBeenCalledWith({ source: 'Tass', parserNewsId: id });
+    expect(payload.heartbeat.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    if (!releaseRead) throw new Error('Missing deferred read');
+    releaseRead({
+      source: 'Tass',
+      externalId: 'publisher',
+      title: 'Synthetic',
+      text: '',
+      publishedAt: event.PublishedAt,
+      textCompleteness: 'lead',
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.flow.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({ externalId: 'publisher', textCompleteness: 'lead' }),
+    );
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    if (!releaseSave) throw new Error('Missing deferred save');
+    releaseSave(job);
+    await work;
+    expect(f.port.commitOffsets).toHaveBeenCalledOnce();
+    await f.pump.stop();
+  });
+  it.each(['stale', 'heartbeat'])(
+    'does not begin admission after %s during parser read',
+    async (cause) => {
+      let release: ((value: Awaited<ReturnType<ResolveParserNews>>) => void) | undefined;
+      const f = fixture(
+        () =>
+          new Promise((done) => {
+            release = done;
+          }),
+      );
+      await start(f);
+      vi.useFakeTimers();
+      let stale = false;
+      const payload = {
+        ...batch([Buffer.from(JSON.stringify({ Source: 'Tass', Id: '0123456789abcdef01234567' }))]),
+        isStale: () => stale,
+      };
+      const work = f.pump.eachBatch(payload);
+      const settled = work.then(
+        () => null,
+        (error) => error,
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      if (cause === 'stale') stale = true;
+      else {
+        payload.heartbeat.mockRejectedValue(new Error('Heartbeat lost'));
+        await vi.advanceTimersByTimeAsync(3000);
+      }
+      if (!release) throw new Error('Missing deferred read');
+      release({
+        source: 'Tass',
+        externalId: 'publisher',
+        title: 'Synthetic',
+        text: '',
+        publishedAt: event.PublishedAt,
+        textCompleteness: 'lead',
+      });
+      const result = await settled;
+      if (cause === 'heartbeat') expect(result).toBeInstanceOf(Error);
+      else expect(result).toBeNull();
+      expect(f.flow.ingest).not.toHaveBeenCalled();
+      expect(f.port.commitOffsets).not.toHaveBeenCalled();
+      await f.pump.stop();
+    },
+  );
+  it('waits for an in-flight heartbeat before admission when parser read completes', async () => {
+    let releaseRead: ((value: Awaited<ReturnType<ResolveParserNews>>) => void) | undefined;
+    let rejectHeartbeat: ((reason: Error) => void) | undefined;
+    const f = fixture(
+      () =>
+        new Promise((done) => {
+          releaseRead = done;
+        }),
+    );
+    await start(f);
+    vi.useFakeTimers();
+    const payload = batch([
+      Buffer.from(JSON.stringify({ Source: 'Tass', Id: '0123456789abcdef01234567' })),
+    ]);
+    const work = f.pump.eachBatch(payload);
+    const settled = work.then(
+      () => null,
+      (error) => error,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    payload.heartbeat.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectHeartbeat = reject;
+        }),
+    );
+    await vi.advanceTimersByTimeAsync(2500);
+    if (!releaseRead) throw new Error('Missing deferred read');
+    releaseRead({
+      source: 'Tass',
+      externalId: 'publisher',
+      title: 'Synthetic',
+      text: '',
+      publishedAt: event.PublishedAt,
+      textCompleteness: 'lead',
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    if (!rejectHeartbeat) throw new Error('Missing deferred heartbeat');
+    rejectHeartbeat(new Error('Heartbeat lost after read'));
+    expect(await settled).toBeInstanceOf(Error);
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    await f.pump.stop();
+  });
+  it('rechecks stale state after a pending heartbeat settles and before admission', async () => {
+    let releaseRead: ((value: Awaited<ReturnType<ResolveParserNews>>) => void) | undefined;
+    let releaseHeartbeat: (() => void) | undefined;
+    const f = fixture(
+      () =>
+        new Promise((done) => {
+          releaseRead = done;
+        }),
+    );
+    await start(f);
+    vi.useFakeTimers();
+    let stale = false;
+    const payload = {
+      ...batch([Buffer.from(JSON.stringify({ Source: 'Tass', Id: '0123456789abcdef01234567' }))]),
+      isStale: () => stale,
+    };
+    const work = f.pump.eachBatch(payload);
+    await vi.advanceTimersByTimeAsync(0);
+    payload.heartbeat.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseHeartbeat = resolve;
+        }),
+    );
+    await vi.advanceTimersByTimeAsync(2500);
+    if (!releaseRead) throw new Error('Missing deferred read');
+    releaseRead({
+      source: 'Tass',
+      externalId: 'publisher',
+      title: 'Synthetic',
+      text: '',
+      publishedAt: event.PublishedAt,
+      textCompleteness: 'lead',
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    stale = true;
+    if (!releaseHeartbeat) throw new Error('Missing deferred heartbeat');
+    releaseHeartbeat();
+    await work;
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    await f.pump.stop();
+  });
+  it('leaves a transient parser failure uncommitted and can replay it', async () => {
+    const resolve = vi
+      .fn<ResolveParserNews>()
+      .mockRejectedValueOnce(new NewsAnalysisError(502, 'PARSER_NEWS_UNAVAILABLE', 'Temporary'))
+      .mockResolvedValue({
+        source: 'Tass',
+        externalId: 'publisher',
+        title: 'Synthetic',
+        text: '',
+        publishedAt: event.PublishedAt,
+        textCompleteness: 'lead',
+      });
+    const f = fixture(resolve);
+    await start(f);
+    const rawReference = Buffer.from(
+      JSON.stringify({ Source: 'Tass', Id: '0123456789abcdef01234567' }),
+    );
+    const payload = batch([rawReference]);
+    await expect(f.pump.eachBatch(payload)).rejects.toMatchObject({
+      code: 'PARSER_NEWS_UNAVAILABLE',
+    });
+    expect(f.port.commitOffsets).not.toHaveBeenCalled();
+    expect(f.flow.ingest).not.toHaveBeenCalled();
+    expect(payload.pause).not.toHaveBeenCalled();
+    await f.pump.eachBatch(batch([rawReference]));
+    expect(f.port.commitOffsets).toHaveBeenCalledOnce();
+    await f.pump.stop();
+  });
+  it('blocks an unresolved/mismatched parser reference without leaking or acknowledging the payload', async () => {
+    for (const resolve of [
+      undefined,
+      vi.fn<ResolveParserNews>(async () => {
+        throw new NewsAnalysisError(422, 'PARSER_NEWS_SOURCE_MISMATCH', 'Mismatch');
+      }),
+    ]) {
+      const f = fixture(resolve);
+      await start(f);
+      const payload = batch([
+        Buffer.from(JSON.stringify({ Source: 'Tass', Id: '0123456789abcdef01234567' })),
+        raw,
+      ]);
+      await f.pump.eachBatch(payload);
+      expect(payload.pause).toHaveBeenCalledOnce();
+      expect(f.flow.ingest).not.toHaveBeenCalled();
+      expect(f.port.commitOffsets).not.toHaveBeenCalled();
+      expect(f.pump.status().blocked[0]?.code).toBe('INGRESS_REJECTED');
+      await f.pump.stop();
+    }
+  });
+  it('does not read parser for legacy replay messages', async () => {
+    const resolve = vi.fn<ResolveParserNews>();
+    const f = fixture(resolve);
+    await start(f);
+    await f.pump.eachBatch(batch());
+    expect(resolve).not.toHaveBeenCalled();
+    expect(f.flow.ingest).toHaveBeenCalledOnce();
     await f.pump.stop();
   });
   it('is optional and rejects an enabled but incomplete configuration', () => {

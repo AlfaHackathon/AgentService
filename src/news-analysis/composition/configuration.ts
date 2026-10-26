@@ -7,6 +7,7 @@ import { CompanyClient } from '../retrieval/company-client.ts';
 import { ContextClient } from '../retrieval/context-client.ts';
 import { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
 import { InsightClient } from '../retrieval/insight-client.ts';
+import { ParserNewsClient } from '../transport/http/parser-news-client.ts';
 import type { NewsAnalysisRouteOptions } from '../transport/http/routes.ts';
 import { serviceSettingsSchema } from '../transport/http/settings.ts';
 import { createNewsKafkaConsumer } from '../transport/kafka/consumer.ts';
@@ -48,7 +49,15 @@ export function createConfiguredNewsAnalysis(
     flow,
     new CompanyClient(COMPANY_SERVICE_URL, secret),
   );
-  const kafka = createNewsKafkaConsumer(flow, environment);
+  const parser =
+    environment.NEWS_KAFKA_ENABLED === 'true' && environment.NEWS_SERVICE_URL
+      ? new ParserNewsClient(environment.NEWS_SERVICE_URL, secret)
+      : undefined;
+  const kafka = createNewsKafkaConsumer(
+    flow,
+    environment,
+    parser ? (reference) => parser.read(reference) : undefined,
+  );
   flow.start();
   changes.start();
   kafka?.start();
