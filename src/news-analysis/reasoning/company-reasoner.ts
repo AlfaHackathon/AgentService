@@ -51,16 +51,44 @@ export function createNativeNewsReasoner(
         assessment: e.currentRevision.assessment,
         sources: e.currentRevision.sourceRefs,
       }));
-    const references = (refs: EffectDraft['sourceRefs']) => {
+    const assessmentReferences = (value: EffectDraft['assessment'] | null) =>
+      value
+        ? [
+            ...value.conditions.flatMap((condition) => condition.sourceRefs),
+            ...(value.applicability?.sourceRefs ?? []),
+          ]
+        : [];
+    const historicalReferences = questions.flatMap((q) => [
+      ...q.sources,
+      ...assessmentReferences(q.assessment),
+    ]);
+    const unavailableCatalogInstruction =
+      '\nPreviousQuestions unavailableSourceRefHandles use unavailableReferenceCatalog (u*). These exact identities are NOT loaded originals or permitted citation handles. Only loaded s* handles may be cited.\n';
+    let compactUnavailable = false;
+    let unavailableHandles = new Map<string, string>();
+    let unavailableCatalog: (EffectDraft['sourceRefs'][number] & {
+      handle: string;
+      availability: 'not_loaded';
+    })[] = [];
+    const references = (refs: EffectDraft['sourceRefs'], historical = false) => {
       const sourceHandles: string[] = [];
       const unavailableSourceRefs: EffectDraft['sourceRefs'] = [];
+      const unavailableSourceRefHandles: string[] = [];
       for (const ref of new Map(refs.map((ref) => [sourceKey(ref), ref])).values()) {
         const index = sources.findIndex((source) => sourceKey(source) === sourceKey(ref));
         const handle = handles[index];
-        if (handle === undefined) unavailableSourceRefs.push(ref);
-        else sourceHandles.push(handle);
+        if (handle === undefined) {
+          const unavailableHandle =
+            compactUnavailable && historical ? unavailableHandles.get(sourceKey(ref)) : undefined;
+          if (unavailableHandle) unavailableSourceRefHandles.push(unavailableHandle);
+          else unavailableSourceRefs.push(ref);
+        } else sourceHandles.push(handle);
       }
-      return { sourceHandles, ...(unavailableSourceRefs.length ? { unavailableSourceRefs } : {}) };
+      return {
+        sourceHandles,
+        ...(unavailableSourceRefs.length ? { unavailableSourceRefs } : {}),
+        ...(unavailableSourceRefHandles.length ? { unavailableSourceRefHandles } : {}),
+      };
     };
     const importance = (value: EffectDraft['companyImportance']) => {
       if (!value) return value;
@@ -72,24 +100,24 @@ export function createNativeNewsReasoner(
         ...(unavailableSourceRefs ? { unavailableEvidenceRefs: unavailableSourceRefs } : {}),
       };
     };
-    const assessment = (value: EffectDraft['assessment'] | null) =>
+    const assessment = (value: EffectDraft['assessment'] | null, historical = false) =>
       value && {
         ...value,
         conditions: value.conditions.map(({ sourceRefs, ...condition }) => ({
           ...condition,
-          ...references(sourceRefs),
+          ...references(sourceRefs, historical),
         })),
         ...(value.applicability
           ? {
               applicability: {
                 ...value.applicability,
                 sourceRefs: undefined,
-                ...references(value.applicability.sourceRefs),
+                ...references(value.applicability.sourceRefs, historical),
               },
             }
           : {}),
       };
-    const makeContent = () =>
+    const serialize = () =>
       JSON.stringify({
         ...input,
         previousEffects: undefined,
@@ -107,8 +135,8 @@ export function createNativeNewsReasoner(
         })),
         previousQuestions: questions.map(({ sources: refs, ...question }) => ({
           ...question,
-          assessment: assessment(question.assessment),
-          ...references(refs),
+          assessment: assessment(question.assessment, true),
+          ...references(refs, true),
         })),
         objectCatalog: objects,
         economicObjectCatalog: economicObjectCatalog(
@@ -116,6 +144,7 @@ export function createNativeNewsReasoner(
           input.request.companyId,
           input.request.asOf,
         ),
+        ...(compactUnavailable ? { unavailableReferenceCatalog: unavailableCatalog } : {}),
         sourceCatalog: sources.map((s, i) => ({
           handle: handles[i],
           materialId: s.materialId,
@@ -123,6 +152,37 @@ export function createNativeNewsReasoner(
           contentHash: s.contentHash,
         })),
       });
+    const makeContent = () => {
+      compactUnavailable = false;
+      const original = serialize();
+      const loaded = new Set(sources.map(sourceKey));
+      const repeated = new Map<string, { ref: EffectDraft['sourceRefs'][number]; count: number }>();
+      for (const ref of historicalReferences) {
+        const key = sourceKey(ref);
+        if (loaded.has(key)) continue;
+        const previous = repeated.get(key);
+        if (previous) previous.count++;
+        else repeated.set(key, { ref, count: 1 });
+      }
+      unavailableCatalog = [...repeated.values()]
+        .filter(({ count }) => count > 1)
+        .map(({ ref }, i) => ({ ...ref, handle: `u${i}`, availability: 'not_loaded' }));
+      unavailableHandles = new Map(
+        unavailableCatalog.map((entry) => [sourceKey(entry), entry.handle]),
+      );
+      if (!unavailableCatalog.length) return original;
+      compactUnavailable = true;
+      const compact = serialize();
+      // Include JSON string escaping and the additional instruction, not just character counts.
+      if (
+        Buffer.byteLength(JSON.stringify(compact), 'utf8') +
+          Buffer.byteLength(JSON.stringify(unavailableCatalogInstruction), 'utf8') <
+        Buffer.byteLength(JSON.stringify(original), 'utf8')
+      )
+        return compact;
+      compactUnavailable = false;
+      return original;
+    };
     // Reserve room for instructions/tool feedback; measure the entire review payload.
     const required = new Set([
       input.context.news.materialId,
@@ -224,6 +284,7 @@ export function createNativeNewsReasoner(
           : {}),
         instructions:
           instructions +
+          (compactUnavailable ? unavailableCatalogInstruction : '') +
           '\nВ предложениях, прежних вопросах и toolTrace точные citations упакованы как sourceHandles/evidenceSourceHandles из sourceCatalog; полная identity и оригиналы сохранены в context. Незагруженные точные refs сохранены отдельно в unavailableSourceRefs/unavailableEvidenceRefs; они не являются sourceHandles или новыми подтверждениями. Все уникальные conditions, unknowns и результаты arithmetic feedback сохранены; feedback подтверждает только арифметику. В submit_news_analysis обязательно заполняй sourceHandles каждого draft, включая s0, и sourceHandles условий/applicability.\n' +
           `\nEvery condition and unknown needs a unique local id. Conditions also require assertion (observed, derived, conditional) and dependsOn (IDs of conditions or unknowns). Observed facts have no dependencies; derived and conditional claims require explicit prerequisites. A derived claim can be supported only when every reachable prerequisite is supported. An unresolved index identity, period, exposure or other necessary fact must be an unknown dependency; source citations alone do not establish the consequence. Keep independent observed facts supported. A conditional scenario must retain condition.status unknown, impact.evidenceStatus conditional, established applicability and explicit applicability.assumptions; state the hypothetical proposition explicitly. These fields describe declared evidence dependencies, not source handles. Never invent evidence or erase unknown prerequisites to obtain acceptance.\n` +
           `\nДля каждого вывода заполни impact: metric и amountBasis определяют совместимость расчёта;
