@@ -45,7 +45,7 @@ export function useClientAssistantTools(chatId: string) {
   useTool({
     name: 'assistant_company_profile',
     description:
-      'Read the current company profile of the trusted chat owner. Company and time are fixed by the server.',
+      'Read the versioned company profile and declared regional/industry signals of the trusted chat owner, with a separate current viewer role for framing only. Company, owner and time are fixed by the server.',
     input: v.strictObject({}),
     run: () => execute(() => session.profile()),
   });

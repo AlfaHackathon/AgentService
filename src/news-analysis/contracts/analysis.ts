@@ -364,6 +364,7 @@ export const analysisWriteSchema = analysisRequestSchema.extend({
 export type AnalysisWrite = z.infer<typeof analysisWriteSchema>;
 
 export type ReasoningInput = {
+  companyProfile?: import('zod').infer<typeof import('./flow.ts').companyProfileSchema> | null;
   request: AnalysisRequest;
   context: ContextBundle;
   previousEffects: StoredEffect[];

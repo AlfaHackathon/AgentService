@@ -956,104 +956,109 @@ describe('Flue news agents with the project provider over HTTP', () => {
     expect(JSON.stringify(adapterResult.requests[1])).toContain('condition');
   });
 
-  it('lets the model repair a CSV-only conditional claim to unknown before terminating', async () => {
-    let validations = 0;
-    const insights = await createHttpService(async (request) => {
-      expect(request.headers.get('X-Internal-Secret')).toBe('test-internal-secret');
-      const input = await request.json();
-      if (new URL(request.url).pathname === '/internal/analyses/validate-applicability') {
-        expect(input.candidates).toHaveLength(1);
-        expect(input.candidates[0].hasCalculation).toBe(false);
-        validations++;
-        return validations === 1
-          ? Response.json(
-              { errorMessage: 'CSV profile is insufficient; preserve unknown' },
-              { status: 422 },
-            )
-          : Response.json({ valid: true });
-      }
-      expect(new URL(request.url).pathname).toBe('/internal/analyses/prepare');
-      return Response.json({
-        drafts: input.drafts.map((draft: Record<string, unknown>) => ({
-          ...draft,
-          expectedPreviousRevisionId: null,
-        })),
+  it.each(['provided-bank-csv', 'company-operational-declared-profile'])(
+    'lets the model repair a %s-only conditional claim to unknown before terminating',
+    async (sourceId) => {
+      let validations = 0;
+      const insights = await createHttpService(async (request) => {
+        expect(request.headers.get('X-Internal-Secret')).toBe('test-internal-secret');
+        const input = await request.json();
+        if (new URL(request.url).pathname === '/internal/analyses/validate-applicability') {
+          expect(input.candidates).toHaveLength(1);
+          expect(input.candidates[0].hasCalculation).toBe(false);
+          validations++;
+          return sourceId === 'provided-bank-csv' && validations === 1
+            ? Response.json(
+                { errorMessage: 'CSV profile is insufficient; preserve unknown' },
+                { status: 422 },
+              )
+            : Response.json({ valid: true });
+        }
+        expect(new URL(request.url).pathname).toBe('/internal/analyses/prepare');
+        return Response.json({
+          drafts: input.drafts.map((draft: Record<string, unknown>) => ({
+            ...draft,
+            expectedPreviousRevisionId: null,
+          })),
+        });
       });
-    });
-    servers.push(insights);
-    vi.stubEnv('INSIGHT_SERVICE_URL', insights.url);
+      servers.push(insights);
+      vi.stubEnv('INSIGHT_SERVICE_URL', insights.url);
 
-    vi.stubEnv('CONTEXT_SERVICE_URL', 'http://unused-context.test');
-    vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
-    const profile = {
-      ...context.news,
-      materialId: 'csv-profile',
-      sourceId: 'provided-bank-csv',
-      kind: 'company' as const,
-      companyIds: [companyId],
-      contentHash: 'b'.repeat(64),
-    };
-    const draft = {
-      objectHandle: 'o0',
-      question: {
-        mechanism: 'financing_cost',
-        frame: 'event_only',
-        unit: 'qualitative',
-        targetPeriod: 'unknown',
-        baselinePeriod: null,
-        basis: 'qualitative',
-      },
-      assessment: {
-        conditions: [],
-        unknowns: [],
-        applicability: {
-          status: 'established',
-          basis: 'documented_exposure',
-          explanation: 'CSV flag',
-          sourceHandles: ['s1'],
-          assumptions: ['Rate change scenario'],
+      vi.stubEnv('CONTEXT_SERVICE_URL', 'http://unused-context.test');
+      vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
+      const profile = {
+        ...context.news,
+        materialId: 'csv-profile',
+        sourceId,
+        kind: 'company' as const,
+        companyIds: [companyId],
+        contentHash: 'b'.repeat(64),
+      };
+      const draft = {
+        objectHandle: 'o0',
+        question: {
+          mechanism: 'financing_cost',
+          frame: 'event_only',
+          unit: 'qualitative',
+          targetPeriod: 'unknown',
+          baselinePeriod: null,
+          basis: 'qualitative',
         },
-      },
-      conclusion: 'Fixture conditional based only on profile',
-      status: 'conditional',
-      impact: {
-        metric: 'risk',
-        amountBasis: 'qualitative',
-        economicObjectHandle: null,
-        evidenceStatus: 'conditional',
-        importance: 1,
-        urgency: 1,
-        novelty: 1,
-      },
-      sourceHandles: ['s0', 's1'],
-      calculation: null,
-    };
-    const repaired = {
-      ...draft,
-      status: 'unknown',
-      impact: { ...draft.impact, evidenceStatus: 'unknown' },
-      assessment: {
-        ...draft.assessment,
-        applicability: {
-          ...draft.assessment.applicability,
-          status: 'unknown',
-          basis: 'profile_signal',
-          assumptions: [],
+        assessment: {
+          conditions: [],
+          unknowns: [],
+          applicability: {
+            status: 'established',
+            basis: 'documented_exposure',
+            explanation: 'CSV flag',
+            sourceHandles: ['s1'],
+            assumptions: ['Rate change scenario'],
+          },
         },
-      },
-    };
-    const result = await adapter({ drafts: [draft] }, true, 'submit_news_analysis', {
-      drafts: [repaired],
-    });
-    const saved = await result.reasoner.analyze({
-      ...input,
-      context: { ...context, materials: [profile] },
-    });
-    expect(saved[0]?.impact?.evidenceStatus).toBe('unknown');
-    expect(result.requests).toHaveLength(2);
-    expect(JSON.stringify(result.requests[1])).toContain('INSIGHT_DRAFT_VALIDATION');
-    expect(validations).toBe(2);
-  });
+        conclusion: 'Fixture conditional based only on profile',
+        status: 'conditional',
+        impact: {
+          metric: 'risk',
+          amountBasis: 'qualitative',
+          economicObjectHandle: null,
+          evidenceStatus: 'conditional',
+          importance: 1,
+          urgency: 1,
+          novelty: 1,
+        },
+        sourceHandles: ['s0', 's1'],
+        calculation: null,
+      };
+      const repaired = {
+        ...draft,
+        status: 'unknown',
+        impact: { ...draft.impact, evidenceStatus: 'unknown' },
+        assessment: {
+          ...draft.assessment,
+          applicability: {
+            ...draft.assessment.applicability,
+            status: 'unknown',
+            basis: 'profile_signal',
+            assumptions: [],
+          },
+        },
+      };
+      const result = await adapter({ drafts: [draft] }, true, 'submit_news_analysis', {
+        drafts: [repaired],
+      });
+      const saved = await result.reasoner.analyze({
+        ...input,
+        context: { ...context, materials: [profile] },
+      });
+      expect(saved[0]?.impact?.evidenceStatus).toBe('unknown');
+      expect(result.requests).toHaveLength(2);
+      expect(JSON.stringify(result.requests[1])).toContain(
+        sourceId === 'provided-bank-csv' ? 'INSIGHT_DRAFT_VALIDATION' : 'DECLARED_PROFILE_EXPOSURE',
+      );
+      expect(validations).toBe(sourceId === 'provided-bank-csv' ? 2 : 1);
+    },
+  );
 
   it('packs whole optional originals against full review overhead and preserves cited evidence', async () => {
     const cited = {

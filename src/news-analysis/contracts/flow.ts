@@ -24,7 +24,24 @@ export const flowRequestSchema = z.strictObject({
   projectionOnly: z.boolean().default(false),
 });
 export type FlowRequest = z.infer<typeof flowRequestSchema>;
+export const declaredProfileSchema = z.object({
+  region: z.string().max(128).nullable(),
+  industrySections: z
+    .array(z.string().regex(/^[A-U]$/))
+    .max(21)
+    .nullable(),
+  revenue: z
+    .object({
+      amount: z.string().regex(/^-?(0|[1-9]\d*)(\.\d+)?$/),
+      currency: z.string().nullable(),
+      period: z.string().nullable(),
+    })
+    .nullable(),
+  countOfEmployees: z.number().int().nonnegative().nullable(),
+  sourceRefs: z.array(sourceRefSchema).length(1),
+});
 export const companyProfileSchema = z.object({
+  declaredProfile: declaredProfileSchema.nullable().optional(),
   companyId: z.uuid(),
   revisionId: z.string(),
   bankProfileId: z.string().nullable(),

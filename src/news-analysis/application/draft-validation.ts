@@ -1,5 +1,6 @@
 import type { EffectDraft } from '../contracts/analysis.ts';
 import { validateCompanyImportanceEvidence } from '../contracts/company-importance.ts';
+import { validateProfileExposure } from '../contracts/declared-profile.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import { validateEvidenceDependencies } from '../contracts/evidence-dependencies.ts';
 import type { ContextClient } from '../retrieval/context-client.ts';
@@ -14,6 +15,7 @@ export function validateReferences(
   const available = new Set([context.news, ...context.materials].map(sourceKey));
   const currentNews = sourceKey(context.news);
   for (const draft of drafts) {
+    validateProfileExposure(draft, context.materials);
     validateCompanyImportanceEvidence(
       draft,
       context.materials.filter((s) => s.kind === 'company' && s.companyIds.length > 0),
