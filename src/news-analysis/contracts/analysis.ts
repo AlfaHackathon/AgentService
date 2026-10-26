@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { insightCategorySchema } from './category.ts';
+import type { DeclaredCompanyContext } from './declared-context.ts';
 import { mechanisms, questionSchema } from './questions.ts';
 import { timestampSchema } from './timestamps.ts';
 
@@ -251,6 +252,10 @@ export const materialSchema = z.object({
 export const contextBundleSchema = z.object({
   news: materialSchema,
   materials: z.array(materialSchema),
+  nonDocumentarySources: z
+    .array(sourceRefSchema.extend({ sourceId: identifier }))
+    .max(256)
+    .optional(),
   coverage: z.object({
     complete: z.boolean(),
     materialCount: z.number().int().nonnegative(),
@@ -369,6 +374,7 @@ export type AnalysisWrite = z.infer<typeof analysisWriteSchema>;
 export type ReasoningInput = {
   request: AnalysisRequest;
   context: ContextBundle;
+  declaredContext?: DeclaredCompanyContext;
   previousEffects: StoredEffect[];
   toolTrace?: z.infer<typeof retrievalTraceSchema>;
 };

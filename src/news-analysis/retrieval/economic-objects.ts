@@ -1,4 +1,5 @@
 import { NewsAnalysisError } from '../contracts/errors.ts';
+import { isNonDocumentarySource } from '../contracts/source-policy.ts';
 import { instantAfter } from '../contracts/timestamps.ts';
 import type { Source } from './source-catalog.ts';
 
@@ -25,7 +26,7 @@ export function economicObjectCatalog(
   for (const [index, source] of sources.entries()) {
     if (
       source.kind !== 'company' ||
-      source.sourceId === 'provided-bank-csv' ||
+      isNonDocumentarySource(source.sourceId) ||
       !source.companyIds.includes(companyId) ||
       instantAfter(source.knownAt, asOf)
     )

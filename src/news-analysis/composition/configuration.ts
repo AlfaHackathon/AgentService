@@ -7,6 +7,7 @@ import { CompanyClient } from '../retrieval/company-client.ts';
 import { ContextClient } from '../retrieval/context-client.ts';
 import { FlowContextClient, FlowJobClient } from '../retrieval/flow-clients.ts';
 import { InsightClient } from '../retrieval/insight-client.ts';
+import { OwnerContextClient } from '../retrieval/owner-context.ts';
 import { ParserNewsClient } from '../transport/http/parser-news-client.ts';
 import type { NewsAnalysisRouteOptions } from '../transport/http/routes.ts';
 import { serviceSettingsSchema } from '../transport/http/settings.ts';
@@ -31,10 +32,32 @@ export function createConfiguredNewsAnalysis(
     INSIGHT_SERVICE_URL,
     COMPANY_SERVICE_URL,
   } = settings.data;
+  const paymentScope =
+    settings.data.NEWS_PAYMENT_SOURCE_ID && settings.data.NEWS_PAYMENT_SOURCE_VERSION_ID
+      ? {
+          sourceId: settings.data.NEWS_PAYMENT_SOURCE_ID,
+          sourceVersionId: settings.data.NEWS_PAYMENT_SOURCE_VERSION_ID,
+        }
+      : undefined;
+  const owners =
+    settings.data.NEWS_OWNER_CONTEXT_ENABLED === 'true'
+      ? new OwnerContextClient({
+          companyUrl: COMPANY_SERVICE_URL,
+          secret,
+          ...(settings.data.USER_SERVICE_URL ? { userUrl: settings.data.USER_SERVICE_URL } : {}),
+          ...(paymentScope ? { payments: paymentScope } : {}),
+        })
+      : undefined;
   const analyzer = new NewsAnalyzer({
-    context: new ContextClient(CONTEXT_SERVICE_URL, secret),
+    context: new ContextClient(
+      CONTEXT_SERVICE_URL,
+      secret,
+      fetch,
+      paymentScope ? [paymentScope.sourceId] : [],
+    ),
     insights: new InsightClient(INSIGHT_SERVICE_URL, secret),
     reasoner: createNativeNewsReasoner(environment),
+    ...(owners ? { owners } : {}),
   });
   const flow = new NewsFlow({
     context: new FlowContextClient(CONTEXT_SERVICE_URL, secret),
@@ -42,6 +65,7 @@ export function createConfiguredNewsAnalysis(
     jobs: new FlowJobClient(INSIGHT_SERVICE_URL, secret),
     analyzer,
     reasoner: createFlowReasoner(environment),
+    ...(owners ? { owners } : {}),
   });
   const changes = new SourceChangePump(
     new FlowContextClient(CONTEXT_SERVICE_URL, secret),

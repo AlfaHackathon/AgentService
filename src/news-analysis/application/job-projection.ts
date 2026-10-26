@@ -1,6 +1,9 @@
+import { z } from 'zod';
+import type { DeclaredCompanyContext } from '../contracts/declared-context.ts';
 import { NewsAnalysisError } from '../contracts/errors.ts';
 import type { FlowCheckpoint, FlowReasoner } from '../contracts/flow.ts';
 import type { FlowJobClient } from '../retrieval/flow-clients.ts';
+import type { OwnerContextClient } from '../retrieval/owner-context.ts';
 
 export async function projectJobResult(input: {
   jobId: string;
@@ -10,6 +13,7 @@ export async function projectJobResult(input: {
   asOf: string;
   save: () => Promise<void>;
   ensureLease: () => void;
+  owners?: Pick<OwnerContextClient, 'recipient' | 'company'>;
 }) {
   const { jobId, jobs, reasoner, checkpoint, asOf, save, ensureLease } = input;
   await save(); // Insight reads the durable checkpoint, including the latest completed work.
@@ -17,10 +21,43 @@ export async function projectJobResult(input: {
   checkpoint.canonicalCompanies = prepared.canonicalCompanies;
   checkpoint.roleViews = prepared.roleViews;
   const proposals: unknown[] = [];
+  const companyContexts = new Map<string, Promise<DeclaredCompanyContext>>();
   for (const scope of prepared.roleScopes) {
     ensureLease();
     try {
-      const result = await reasoner.role(scope.profile, scope.facts, scope.groups, { asOf });
+      let profile: Parameters<FlowReasoner['role']>[0] = scope.profile;
+      if (input.owners && z.uuid().safeParse(scope.profile.personId).success) {
+        const recipient = await input.owners.recipient(
+          scope.profile.personId,
+          scope.profile.companyId,
+          asOf,
+        );
+        if (recipient) {
+          const key = JSON.stringify([scope.profile.companyId.toLowerCase(), asOf]);
+          let company = companyContexts.get(key);
+          if (!company) {
+            company = input.owners.company(scope.profile.companyId, asOf);
+            companyContexts.set(key, company);
+          }
+          profile = {
+            ...structuredClone(scope.profile),
+            role: recipient.viewer?.role?.name ?? scope.profile.role,
+            recipientContext: {
+              company: await company,
+              recipient,
+              knowledgeRole: scope.profile.role,
+              usage: 'framing/actions only; no ACL/arithmetic',
+            },
+          };
+          if (JSON.stringify(profile.recipientContext).length > 48000)
+            throw new NewsAnalysisError(
+              422,
+              'DECLARED_CONTEXT_BUDGET',
+              'Combined declared recipient framing exceeds its context budget; no source fields or canonical facts were truncated.',
+            );
+        }
+      }
+      const result = await reasoner.role(profile, scope.facts, scope.groups, { asOf });
       proposals.push({
         ...result,
         key: scope.key,
